@@ -151,6 +151,7 @@ public:
 	void SetPosition(int x, int y);
 	void SetPosition(Point32 pos);
 	virtual Point32 OnInitialPosition();
+	virtual Point32 OnReposition();
 
 	void MarkDirty();
 

@@ -225,6 +225,7 @@ public:
 	BottomToolbarWindow();
 
 	Point32 OnInitialPosition() override;
+	Point32 OnReposition() override;
 	void SetWidgetStringParameters(WidgetNumber wid_num) const override;
 	void OnChange(ChangeCode code, uint32 parameter) override;
 	void UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid) override;
@@ -236,16 +237,15 @@ public:
  * @ingroup gui_group
  */
 enum BottomToolbarGuiWidgets {
-	BTB_STATUS,         ///< Status panel containing cash and rating readout.
+	BTB_MONEY,          ///< Status panel containing the amount of cash.
 	BTB_WEATHER,        ///< Weather sprite.
-	BTB_TEMPERATURE,    ///< Temperature in the park.
-	BTB_SPACING,        ///< Status panel containing nothing (yet).
+	BTB_NEWS,           ///< Status panel containing nothing (yet).
 	BTB_VIEW_DIRECTION, ///< Status panel containing viewing direction.
 	BTB_DATE,           ///< Status panel containing date.
+	BTB_TEMPERATURE,    ///< Temperature in the park.
 };
 
-static const uint32 BOTTOM_BAR_HEIGHT = 35;     ///< Minimum Y-coord size of the bottom toolbar (BTB) panel.
-static const uint32 BOTTOM_BAR_POSITION_X = 75; ///< Separation of the toolbar from the edge of the window.
+static const uint32 BOTTOM_BAR_HEIGHT = 50; ///< Minimum Y-coord size of the bottom toolbar (BTB) panel.
 
 /**
  * Widget parts of the bottom toolbar GUI.
@@ -254,17 +254,22 @@ static const uint32 BOTTOM_BAR_POSITION_X = 75; ///< Separation of the toolbar f
  * @todo Implement non-minimal default window size to prevent the need to compute remaining space manually.
  */
 static const WidgetPart _bottom_toolbar_widgets[] = {
-	Intermediate(0, 1),
+	Intermediate(1, 0),
 		Widget(WT_PANEL, INVALID_WIDGET_INDEX, COL_RANGE_ORANGE_BROWN),
-			Intermediate(1, 0), SetPadding(0, 3, 0, 3),
-				Widget(WT_LEFT_TEXT, BTB_STATUS, COL_RANGE_ORANGE_BROWN), SetPadding(3, 5, 30, 0), SetData(STR_ARG1, STR_NULL),
-						SetMinimalSize(1, BOTTOM_BAR_HEIGHT), // Temp X value
-				Widget(WT_EMPTY, BTB_WEATHER, COL_RANGE_ORANGE_BROWN), SetPadding(3, 3, 3, 3), SetFill(0, 1),
-				Widget(WT_RIGHT_TEXT, BTB_TEMPERATURE, COL_RANGE_ORANGE_BROWN), SetFill(1, 0), SetData(STR_ARG1, STR_NULL),
-				Widget(WT_EMPTY, BTB_SPACING, COL_RANGE_ORANGE_BROWN), SetMinimalSize(1, BOTTOM_BAR_HEIGHT), // Temp X value
-				Widget(WT_EMPTY, BTB_VIEW_DIRECTION, COL_RANGE_ORANGE_BROWN), SetMinimalSize(1, BOTTOM_BAR_HEIGHT), // Temp X value
-				Widget(WT_RIGHT_TEXT, BTB_DATE, COL_RANGE_ORANGE_BROWN), SetPadding(3, 0, 30, 0), SetData(STR_ARG1, STR_NULL),
-						SetMinimalSize(1, BOTTOM_BAR_HEIGHT), // Temp X value
+			Intermediate(0, 1), // Money, guests, rating
+				Widget(WT_CENTERED_TEXT, BTB_MONEY, COL_RANGE_ORANGE_BROWN), SetPadding(3, 5, 3, 0), SetData(STR_ARG1, STR_NULL),
+			EndContainer(),
+		Widget(WT_PANEL, INVALID_WIDGET_INDEX, COL_RANGE_ORANGE_BROWN),
+			Intermediate(0, 1), // News
+				Widget(WT_EMPTY, BTB_NEWS, COL_RANGE_ORANGE_BROWN), SetFill(1, 1), SetResize(1, 0),
+			EndContainer(),
+		Widget(WT_PANEL, INVALID_WIDGET_INDEX, COL_RANGE_ORANGE_BROWN),
+			Intermediate(2, 1), // Weather, date, draw direction
+				Widget(WT_RIGHT_TEXT, BTB_DATE, COL_RANGE_ORANGE_BROWN), SetPadding(3, 0, 3, 0), SetData(STR_ARG1, STR_NULL),
+				Intermediate(1, 3),
+					Widget(WT_EMPTY, BTB_VIEW_DIRECTION, COL_RANGE_ORANGE_BROWN),
+					Widget(WT_RIGHT_TEXT, BTB_TEMPERATURE, COL_RANGE_ORANGE_BROWN), SetFill(1, 0), SetData(STR_ARG1, STR_NULL),
+					Widget(WT_EMPTY, BTB_WEATHER, COL_RANGE_ORANGE_BROWN), SetPadding(3, 3, 3, 3), SetFill(0, 1),
 			EndContainer(),
 	EndContainer(),
 };
@@ -276,16 +281,19 @@ BottomToolbarWindow::BottomToolbarWindow() : GuiWindow(WC_BOTTOM_TOOLBAR, ALL_WI
 
 Point32 BottomToolbarWindow::OnInitialPosition()
 {
-	static Point32 pt;
-	pt.x = BOTTOM_BAR_POSITION_X;
-	pt.y = _video.GetYSize() - BOTTOM_BAR_HEIGHT;
-	return pt;
+	return Point32(0, _video.GetYSize() - BOTTOM_BAR_HEIGHT);
+}
+
+Point32 BottomToolbarWindow::OnReposition()
+{
+	this->ResetSize();
+	return this->OnInitialPosition();
 }
 
 void BottomToolbarWindow::SetWidgetStringParameters(WidgetNumber wid_num) const
 {
 	switch (wid_num) {
-		case BTB_STATUS:
+		case BTB_MONEY:
 			_finances_manager.CashToStrParams();
 			break;
 
@@ -312,7 +320,7 @@ void BottomToolbarWindow::UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid
 	Point32 p(0, 0);
 
 	switch (wid_num) {
-		case BTB_STATUS:
+		case BTB_MONEY:
 			p = GetMoneyStringSize(LARGE_MONEY_AMOUNT);
 			break;
 
@@ -333,18 +341,18 @@ void BottomToolbarWindow::UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid
 			GetTextSize(STR_ARG1, &p.x, &p.y);
 			break;
 
-		case BTB_SPACING: {
-			_str_params.SetNumber(1, LARGE_TEMPERATURE);
+		case BTB_NEWS: {
+/*			_str_params.SetNumber(1, LARGE_TEMPERATURE);
 			Point32 temp_size;
 			GetTextSize(STR_ARG1, &temp_size.x, &temp_size.y);
 
-			int32 remaining = _video.GetXSize() - (2 * BOTTOM_BAR_POSITION_X);
-			remaining -= temp_size.x;
-			remaining -= _sprite_manager.GetTableSpriteSize(SPR_GUI_WEATHER_START).width;
-			remaining -= GetMoneyStringSize(LARGE_MONEY_AMOUNT).x;
-			remaining -= GetMaxDateSize().x;
-			remaining -= _sprite_manager.GetTableSpriteSize(SPR_GUI_COMPASS_START).base.x; // It's the same size for all compass sprites.
-			p = {remaining, (int32)BOTTOM_BAR_HEIGHT};
+			int32 remaining = _video.GetXSize();
+			remaining -= GetMoneyStringSize(LARGE_MONEY_AMOUNT).x;*/
+			/* Temperature + weather sprite are below date */
+/*			remaining -= std::max(temp_size.x + _sprite_manager.GetTableSpriteSize(SPR_GUI_WEATHER_START).width
+			                                  + _sprite_manager.GetTableSpriteSize(SPR_GUI_COMPASS_START).width,
+			                      GetMaxDateSize().x);
+			p = {remaining, (int32)BOTTOM_BAR_HEIGHT};*/
 			break;
 		}
 

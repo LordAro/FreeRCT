@@ -217,6 +217,11 @@ Point32 Window::OnInitialPosition()
 	return compute_pos.FindPosition(this);
 }
 
+Point32 Window::OnReposition()
+{
+	return this->OnInitialPosition();
+}
+
 /**
  * Mark windows as being dirty (needing a repaint).
  * @todo Marking the whole display as needing a repaint is too crude.
@@ -672,6 +677,8 @@ void WindowManager::ResetAllWindows()
 		w->ResetSize();
 		w->SetSize(x_size, y_size);
 	}
+
+	this->RepositionAllWindows();
 	_video.MarkDisplayDirty();
 }
 
@@ -684,12 +691,24 @@ void WindowManager::RepositionAllWindows()
 	Viewport *vp = GetViewport();
 	if (vp == nullptr) return;
 	Rectangle32 vp_rect = vp->rect;
+
 	for (Window *w = this->top; w != nullptr; w = w->lower) {
-		if (w->wtype == WC_MAINDISPLAY) continue;
-		/* Add an arbitrary amount for closebox/titlebar,
-		 * so the window is still actually accessible. */
-		if (!vp_rect.IsPointInside(Point32(w->rect.base.x + 20, w->rect.base.y + 20)) || w->wtype == WC_BOTTOM_TOOLBAR) {
-			w->SetPosition(w->OnInitialPosition());
+		switch(w->wtype) {
+			case WC_MAINDISPLAY:
+				break;
+
+			case WC_TOOLBAR:
+			case WC_BOTTOM_TOOLBAR:
+				w->SetPosition(w->OnReposition());
+				break;
+
+			default:
+				/* Add an arbitrary amount for closebox/titlebar,
+				 * so the window is still actually accessible. */
+				if (!vp_rect.IsPointInside(Point32(w->rect.base.x + 20, w->rect.base.y + 20))) {
+					w->SetPosition(w->OnReposition());
+				}
+				break;
 		}
 	}
 }

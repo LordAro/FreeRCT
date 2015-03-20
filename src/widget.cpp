@@ -1335,6 +1335,7 @@ void IntermediateWidget::SetSmallestSizePosition(const Rectangle16 &rect)
 
 void IntermediateWidget::SetSize(const Rectangle16 &rect)
 {
+	printf("min: %u,%u\t rect: %u,%u,%u,%u\n", this->min_x, this->min_y, rect.base.x, rect.base.y, rect.width, rect.height);
 	assert(this->min_x <= rect.width && this->min_y <= rect.height);
 	this->pos = rect;
 
