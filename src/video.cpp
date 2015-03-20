@@ -196,29 +196,18 @@ std::string VideoSystem::Initialize(const char *font_name, int font_size)
 
 	SDL_StartTextInput(); // Enable Unicode character input.
 
-	if (TTF_Init() != 0) {
-		SDL_Quit();
-		delete[] this->mem;
-		std::string err = "TTF font initialization failed: ";
-		err += TTF_GetError();
-		return err;
+	/* Freetype init */
+	if (FT_Init_FreeType(&this->library) != 0) {
 	}
 
-	this->font = TTF_OpenFont(font_name, font_size);
-	if (this->font == nullptr) {
-		std::string err = "TTF Opening font \"";
-		err += font_name;
-		err += "\" size ";
-		err += std::to_string(font_size);
-		err += " failed: ";
-		err += TTF_GetError();
-		TTF_Quit();
-		SDL_Quit();
-		delete[] this->mem;
-		return err;
+	if (FT_New_Face(this->library, font_name, 0, &this->face) != 0) {
 	}
 
-	this->font_height = TTF_FontLineSkip(this->font);
+	/** @todo use actual screen dpi? */
+	if (FT_Set_Char_Size(this->face, 0, font_size * 64, 0, 0) != 0) {
+	}
+
+	this->font_height = this->face->height / 64;
 	this->initialized = true;
 	this->dirty = true; // Ensure it gets painted.
 	this->missing_sprites = false;
@@ -484,8 +473,8 @@ void VideoSystem::MainLoop()
 void VideoSystem::Shutdown()
 {
 	if (this->initialized) {
-		TTF_CloseFont(this->font);
-		TTF_Quit();
+		FT_Done_Face(this->face);
+		FT_Done_FreeType(this->library);
 		SDL_Quit();
 		delete[] this->mem;
 		this->initialized = false;
@@ -712,6 +701,52 @@ void VideoSystem::BlitImages(const Point32 &pt, const ImageData *spr, uint16 num
 }
 
 /**
+ * Decode an UTF-8 character.
+ * @param data Pointer to the start of the data.
+ * @param length Length of the \a data buffer.
+ * @param[out] codepoint If decoding was successful, the value of the decoded character.
+ * @return Number of bytes read to decode the character, or \c 0 if reading failed.
+ */
+static int DecodeUtf8Char(const uint8 *data, size_t length, uint32 *codepoint)
+{
+	if (length < 1) return 0;
+	uint32 value = *data;
+	data++;
+	if ((value & 0x80) == 0) {
+		*codepoint = value;
+		return 1;
+	}
+	int size;
+	uint32 min_value;
+	if ((value & 0xE0) == 0xC0) {
+		size = 2;
+		min_value = 0x80;
+		value &= 0x1F;
+	} else if ((value & 0xF0) == 0xE0) {
+		size = 3;
+		min_value = 0x800;
+		value &= 0x0F;
+	} else if ((value & 0xF8) == 0xF0) {
+		size = 4;
+		min_value = 0x10000;
+		value &= 0x07;
+	} else {
+		return 0;
+	}
+
+	if (length < static_cast<size_t>(size)) return 0;
+	for (int n = 1; n < size; n++) {
+		uint8 val = *data;
+		data++;
+		if ((val & 0xC0) != 0x80) return 0;
+		value = (value << 6) | (val & 0x3F);
+	}
+	if (value < min_value || (value >= 0xD800 && value <= 0xDFFF) || value > 0x10FFFF) return 0;
+	*codepoint = value;
+	return size;
+}
+
+/**
  * Get the text-size of a string.
  * @param text Text to calculate.
  * @param width [out] Resulting width.
@@ -719,9 +754,34 @@ void VideoSystem::BlitImages(const Point32 &pt, const ImageData *spr, uint16 num
  */
 void VideoSystem::GetTextSize(const uint8 *text, int *width, int *height)
 {
-	if (TTF_SizeUTF8(this->font, (const char *)text, width, height) != 0) {
-		*width = 0;
-		*height = 0;
+	*width = 0;
+	*height = 0;
+
+	bool use_kerning = FT_HAS_KERNING(this->face);
+	uint previous = 0;
+	FT_GlyphSlot slot = this->face->glyph;
+
+	for (const uint8 *pt = text; *pt != '\0';) {
+		uint32 u32;
+		int len = DecodeUtf8Char(pt, strlen((const char *)pt), &u32);
+		if (len == 0) break;
+		pt += len;
+
+		uint glyph = FT_Get_Char_Index(this->face, u32);
+
+		if (use_kerning && previous && glyph) {
+			FT_Vector delta;
+			FT_Get_Kerning(this->face, previous, glyph, FT_KERNING_DEFAULT, &delta);
+
+			*width += delta.x / 64;
+		}
+
+		if (FT_Load_Glyph(this->face, glyph, FT_LOAD_RENDER) != 0) {
+		}
+		*width += slot->advance.x / 64;
+		*height = std::max(*height, (int)slot->metrics.height / 64);
+
+		previous = glyph;
 	}
 }
 
@@ -774,19 +834,12 @@ void VideoSystem::GetNumberRangeSize(int64 smallest, int64 biggest, int *width, 
  */
 void VideoSystem::BlitText(const uint8 *text, uint32 colour, int xpos, int ypos, int width, Alignment align)
 {
-	SDL_Color col = {0, 0, 0}; // Font colour does not matter as only the bitmap is used.
-	SDL_Surface *surf = TTF_RenderUTF8_Solid(this->font, (const char *)text, col);
-	if (surf == nullptr) {
-		fprintf(stderr, "Rendering text failed (%s)\n", TTF_GetError());
-		return;
-	}
+	this->blit_rect.ValidateAddress();
 
-	if (surf->format->BitsPerPixel != 8 || surf->format->BytesPerPixel != 1) {
-		fprintf(stderr, "Rendering text failed (Wrong surface format)\n");
-		return;
-	}
-
-	int real_w = std::min(surf->w, width);
+	int w, h;
+	this->GetTextSize(text, &w, &h);
+	ypos += h;
+	int real_w = std::min(w, width);
 	switch (align) {
 		case ALG_LEFT:
 			break;
@@ -802,45 +855,41 @@ void VideoSystem::BlitText(const uint8 *text, uint32 colour, int xpos, int ypos,
 		default: NOT_REACHED();
 	}
 
-	this->blit_rect.ValidateAddress();
+	bool use_kerning = FT_HAS_KERNING(this->face);
+	uint previous = 0;
+	FT_GlyphSlot slot = this->face->glyph;
 
-	uint8 *src = ((uint8 *)surf->pixels);
-	uint32 *dest = this->blit_rect.address + xpos + ypos * this->blit_rect.pitch;
-	int h = surf->h;
-	if (ypos < 0) {
-		h += ypos;
-		src  -= ypos * surf->pitch;
-		dest -= ypos * this->blit_rect.pitch;
-		ypos = 0;
-	}
-	while (h > 0) {
-		if (ypos >= this->blit_rect.height) break;
-		uint8 *src2 = src;
-		uint32 *dest2 = dest;
-		int w = real_w;
-		int x = xpos;
-		if (x < 0) {
-			w += x;
-			if (w <= 0) break;
-			dest2 -= x;
-			src2 -= x;
-			x = 0;
-		}
-		while (w > 0) {
-			if (x >= this->blit_rect.width) break;
-			if (*src2 != 0) *dest2 = colour;
-			src2++;
-			dest2++;
-			x++;
-			w--;
-		}
-		ypos++;
-		src  += surf->pitch;
-		dest += this->blit_rect.pitch;
-		h--;
-	}
+	for (const uint8 *pt = text; *pt != '\0';) {
+		uint32 u32;
+		int len = DecodeUtf8Char(pt, strlen((const char *)pt), &u32);
+		if (len == 0) break;
+		pt += len;
 
-	SDL_FreeSurface(surf);
+		uint glyph = FT_Get_Char_Index(this->face, u32);
+		FT_Load_Glyph(this->face, glyph, FT_LOAD_RENDER);
+		FT_Render_Glyph(slot, FT_RENDER_MODE_LCD);
+
+		if (use_kerning && previous && glyph) {
+			FT_Vector delta;
+			FT_Get_Kerning(this->face, previous, glyph, FT_KERNING_DEFAULT, &delta);
+			xpos += delta.x >> 6;
+		}
+
+		uint32 *dest = this->blit_rect.address + (xpos + slot->bitmap_left) + (ypos - slot->bitmap_top) * this->blit_rect.pitch;
+		for (int i = 0; i < slot->bitmap.rows; i++) {
+			if (ypos - slot->bitmap_top + i < 0) continue;
+			for (int j = 0; j < slot->bitmap.pitch; j++) {
+				if (xpos + slot->bitmap_left + j < 0) continue;
+				if (slot->bitmap.buffer[i * slot->bitmap.pitch + j] > 0x70) {
+					dest[i * this->blit_rect.pitch + j] = colour;
+				}
+			}
+		}
+
+		previous = glyph;
+		xpos += slot->advance.x >> 6;
+		ypos += slot->advance.y >> 6;
+	}
 }
 
 /**

@@ -83,11 +83,10 @@ IF(SDL2_FOUND)
 	target_link_libraries(freerct ${SDL2_LIBRARY})
 ENDIF()
 
-find_package(SDL2_ttf REQUIRED)
-# Legacy variable names
-IF(SDL2_TTF_FOUND)
-	include_directories("${SDL2TTF_INCLUDE_DIR}")
-	target_link_libraries(freerct ${SDL2TTF_LIBRARY})
+find_package(Freetype REQUIRED)
+IF(FREETYPE_FOUND)
+	include_directories(${FREETYPE_INCLUDE_DIRS})
+	target_link_libraries(freerct ${FREETYPE_LIBRARIES})
 ENDIF()
 
 # Determine version string

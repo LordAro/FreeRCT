@@ -11,8 +11,11 @@
 #define VIDEO_H
 
 #include <set>
+
 #include <SDL.h>
-#include <SDL_ttf.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include "geometry.h"
 #include "palette.h"
 
@@ -167,7 +170,9 @@ private:
 	bool initialized; ///< Video system is initialized.
 	bool dirty;       ///< Video display needs being repainted.
 
-	TTF_Font *font;             ///< Opened text font.
+	FT_Library library;
+	FT_Face face;
+
 	SDL_Window *window;         ///< %Window of the application.
 	SDL_Renderer *renderer;     ///< GPU renderer to the application window.
 	SDL_Texture *texture;       ///< GPU Texture storage of the application window.
