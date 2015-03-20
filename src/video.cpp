@@ -18,15 +18,17 @@
 #include "gamecontrol.h"
 #include "window.h"
 #include "viewport.h"
+
+#include <chrono>
 #include <string>
+#include <thread>
 
 VideoSystem _video;  ///< Video sub-system.
-static bool _finish; ///< Finish execution of the main loop (and program).
 
 /** End the program. */
 void QuitProgram()
 {
-	_finish = true;
+	glfwSetWindowShouldClose(_video.window, GL_TRUE);
 }
 
 /** Default constructor of a clipped rectangle. */
@@ -139,98 +141,6 @@ VideoSystem::~VideoSystem()
 }
 
 /**
- * Initialize the video system, preparing it for use.
- * @param font_name Name of the font file to load.
- * @param font_size Size of the font.
- * @return Error message if initialization failed, else an empty text.
- */
-std::string VideoSystem::Initialize(const char *font_name, int font_size)
-{
-	if (this->initialized) return "";
-
-	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-		std::string err = "SDL video initialization failed: ";
-		err += SDL_GetError();
-		return err;
-	}
-
-	std::string caption = "FreeRCT ";
-	caption += _freerct_revision;
-	this->window = SDL_CreateWindow(caption.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_RESIZABLE);
-	if (this->window == nullptr) {
-		std::string err = "SDL window creation failed: ";
-		err += SDL_GetError();
-		SDL_Quit();
-		return err;
-	}
-
-	this->renderer = SDL_CreateRenderer(this->window, -1, SDL_RENDERER_ACCELERATED);
-	if (this->renderer == nullptr) {
-		std::string err = "SDL renderer creation failed: ";
-		err += SDL_GetError();
-		SDL_DestroyWindow(this->window);
-		SDL_Quit();
-		return err;
-	}
-
-	this->GetResolutions();
-
-	this->SetResolution({800, 600}); // Allocates this->mem, return value is ignored.
-
-	/* SDL_CreateRGBSurfaceFrom() pretends to use a void* for the data,
-	 * but it's really treated as endian-specific uint32*.
-	 * But since the c++ compiler handles the endianness of _icon_data, it's ok. */
-	const uint32 rmask = 0xff000000;
-	const uint32 gmask = 0x00ff0000;
-	const uint32 bmask = 0x0000ff00;
-	const uint32 amask = 0x000000ff;
-	SDL_Surface *icon = SDL_CreateRGBSurfaceFrom((void *)_icon_data, 32, 32, 4 * 8, 4 * 32,
-	                                             rmask, gmask, bmask, amask);
-
-	if (icon != nullptr) {
-		SDL_SetWindowIcon(this->window, icon);
-		SDL_FreeSurface(icon);
-	} else {
-		printf("Could not set window icon (%s)\n", SDL_GetError());
-	}
-
-	SDL_StartTextInput(); // Enable Unicode character input.
-
-	if (TTF_Init() != 0) {
-		SDL_Quit();
-		delete[] this->mem;
-		std::string err = "TTF font initialization failed: ";
-		err += TTF_GetError();
-		return err;
-	}
-
-	this->font = TTF_OpenFont(font_name, font_size);
-	if (this->font == nullptr) {
-		std::string err = "TTF Opening font \"";
-		err += font_name;
-		err += "\" size ";
-		err += std::to_string(font_size);
-		err += " failed: ";
-		err += TTF_GetError();
-		TTF_Quit();
-		SDL_Quit();
-		delete[] this->mem;
-		return err;
-	}
-
-	this->font_height = TTF_FontLineSkip(this->font);
-	this->initialized = true;
-	this->dirty = true; // Ensure it gets painted.
-	this->missing_sprites = false;
-
-	this->digit_size.x = 0;
-	this->digit_size.y = 0;
-
-	return "";
-}
-
-
-/**
  * Change the resolution of the game window, including
  * reinitialising some screen-size related data structures.
  * @param res Resolution to set the screen to.
@@ -244,27 +154,29 @@ bool VideoSystem::SetResolution(const Point32 &res)
 	if (this->initialized) {
 		delete[] mem;
 		this->mem = nullptr;
-		SDL_DestroyTexture(this->texture);
-		this->texture = nullptr;
 	}
+
+	printf("resize!\n");
 
 	this->vid_width = res.x;
 	this->vid_height = res.y;
-	SDL_SetWindowSize(this->window, this->vid_width, this->vid_height);
-
-	this->texture = SDL_CreateTexture(this->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, this->vid_width, this->vid_height);
-	if (this->texture == nullptr) {
-		SDL_Quit();
-		fprintf(stderr, "Could not create texture (%s)\n", SDL_GetError());
-		return false;
-	}
-
 	this->mem = new uint32[this->vid_width * this->vid_height];
 	if (this->mem == nullptr) {
-		SDL_Quit();
+		glfwTerminate();
 		fprintf(stderr, "Failed to obtain window display storage.\n");
 		return false;
 	}
+
+	glfwSetWindowSize(this->window, this->vid_width, this->vid_height);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+
+	glViewport(0, 0, this->vid_width, this->vid_height);
+
+	glOrtho(0, this->vid_width, 0, this->vid_height, 9001, -1);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
 
 	/* Update internal screen size data structures. */
 	this->blit_rect = ClippedRectangle(0, 0, this->vid_width, this->vid_height);
@@ -278,14 +190,10 @@ bool VideoSystem::SetResolution(const Point32 &res)
 /** Gets the available default resolutions that are supported by the graphics driver. */
 void VideoSystem::GetResolutions()
 {
-	int num_modes = SDL_GetNumDisplayModes(0); // \todo Support multiple displays?
-	SDL_DisplayMode mode;
+	int num_modes;
+	const GLFWvidmode *modes = glfwGetVideoModes(glfwGetPrimaryMonitor(), &num_modes);
 	for (int i = 0; i < num_modes; i++) {
-		if (SDL_GetDisplayMode(0, i, &mode) != 0) {
-			fprintf(stderr, "Could not query display mode (%s)\n", SDL_GetError());
-			continue;
-		}
-		this->resolutions.emplace(mode.w, mode.h);
+		this->resolutions.emplace(modes[i].width, modes[i].height);
 	}
 }
 
@@ -331,16 +239,6 @@ ClippedRectangle VideoSystem::GetClippedRectangle()
 }
 
 /**
- * Update the mouse position in the program.
- * @param x New x position of the mouse.
- * @param y New y position of the mouse.
- */
-static void UpdateMousePosition(int16 x, int16 y)
-{
-	_window_manager.MouseMoveEvent({x, y});
-}
-
-/**
  * Process input from the keyboard.
  * @param key_code Kind of input.
  * @param symbol Entered symbol, if \a key_code is #WMKC_SYMBOL. Utf-8 encoded.
@@ -366,111 +264,291 @@ static bool HandleKeyInput(WmKeyCode key_code, const uint8 *symbol)
 	return false;
 }
 
-/**
- * Handle an input event.
- * @return Game-ending event has happened.
- */
-bool VideoSystem::HandleEvent()
+void GLFWKeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
-	SDL_Event event;
-	if (SDL_PollEvent(&event) != 1) return true;
-
-	switch (event.type) {
-		case SDL_TEXTINPUT:
-			return HandleKeyInput(WMKC_SYMBOL, (const uint8 *)event.text.text);
-
-		case SDL_KEYDOWN:
-			switch (event.key.keysym.sym) {
-				case SDLK_UP:        return HandleKeyInput(WMKC_CURSOR_UP, nullptr);
-				case SDLK_LEFT:      return HandleKeyInput(WMKC_CURSOR_LEFT, nullptr);
-				case SDLK_RIGHT:     return HandleKeyInput(WMKC_CURSOR_RIGHT, nullptr);
-				case SDLK_DOWN:      return HandleKeyInput(WMKC_CURSOR_DOWN, nullptr);
-				case SDLK_ESCAPE:    return HandleKeyInput(WMKC_CANCEL, nullptr);
-				case SDLK_DELETE:    return HandleKeyInput(WMKC_DELETE, nullptr);
-				case SDLK_BACKSPACE: return HandleKeyInput(WMKC_BACKSPACE, nullptr);
-
-				case SDLK_RETURN:
-				case SDLK_RETURN2:
-				case SDLK_KP_ENTER:  return HandleKeyInput(WMKC_CONFIRM, nullptr);
-
-				default:             return false;
-			}
-
-		case SDL_MOUSEMOTION:
-			UpdateMousePosition(event.button.x, event.button.y);
-			return false;
-
-		case SDL_MOUSEWHEEL:
-			_window_manager.MouseWheelEvent((event.wheel.y > 0) ? 1 : -1);
-			return false;
-
-		case SDL_MOUSEBUTTONUP:
-		case SDL_MOUSEBUTTONDOWN:
-			switch (event.button.button) {
-				case SDL_BUTTON_LEFT:
-					UpdateMousePosition(event.button.x, event.button.y);
-					_window_manager.MouseButtonEvent(MB_LEFT, (event.type == SDL_MOUSEBUTTONDOWN));
-					break;
-
-				case SDL_BUTTON_MIDDLE:
-					UpdateMousePosition(event.button.x, event.button.y);
-					_window_manager.MouseButtonEvent(MB_MIDDLE, (event.type == SDL_MOUSEBUTTONDOWN));
-					break;
-
-				case SDL_BUTTON_RIGHT:
-					UpdateMousePosition(event.button.x, event.button.y);
-					_window_manager.MouseButtonEvent(MB_RIGHT, (event.type == SDL_MOUSEBUTTONDOWN));
-					break;
-
-				default:
-					break;
-			}
-			return false;
-
-		case SDL_USEREVENT:
-			return true;
-
-		case SDL_WINDOWEVENT:
-			if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-				this->SetResolution({event.window.data1, event.window.data2});
-			}
-			if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
-				_video.MarkDisplayDirty();
-				UpdateWindows();
-			}
-			return false;
-
-		case SDL_QUIT:
-			QuitProgram();
-			return true;
+	switch (key) {
+		case GLFW_KEY_UP:        HandleKeyInput(WMKC_CURSOR_UP,    nullptr); break;
+		case GLFW_KEY_LEFT:      HandleKeyInput(WMKC_CURSOR_LEFT,  nullptr); break;
+		case GLFW_KEY_RIGHT:     HandleKeyInput(WMKC_CURSOR_RIGHT, nullptr); break;
+		case GLFW_KEY_DOWN:      HandleKeyInput(WMKC_CURSOR_DOWN,  nullptr); break;
+		case GLFW_KEY_ESCAPE:    HandleKeyInput(WMKC_CANCEL,       nullptr); break;
+		case GLFW_KEY_DELETE:    HandleKeyInput(WMKC_DELETE,       nullptr); break;
+		case GLFW_KEY_BACKSPACE: HandleKeyInput(WMKC_BACKSPACE,    nullptr); break;
+		case GLFW_KEY_ENTER:
+		case GLFW_KEY_KP_ENTER:  HandleKeyInput(WMKC_CONFIRM,      nullptr); break;
 
 		default:
-			return false; // Ignore other events.
+			/* Other key presses aren't (yet) interesting. */
+			break;
+	}
+}
+
+void GLFWTextInputCallback(GLFWwindow *window, uint codepoint)
+{
+	uint8 buf[2];
+	buf[0] = codepoint; // \todo Handle unicodeiness
+	buf[1] = '\0';
+	HandleKeyInput(WMKC_SYMBOL, buf);
+}
+
+void GLFWMouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
+{
+	switch (button) {
+		case GLFW_MOUSE_BUTTON_LEFT:
+			_window_manager.MouseButtonEvent(MB_LEFT, (action == GLFW_PRESS));
+			break;
+
+		case GLFW_MOUSE_BUTTON_MIDDLE:
+			_window_manager.MouseButtonEvent(MB_MIDDLE, (action == GLFW_PRESS));
+			break;
+
+		case GLFW_MOUSE_BUTTON_RIGHT:
+			_window_manager.MouseButtonEvent(MB_RIGHT, (action == GLFW_PRESS));
+			break;
+
+		default:
+			break;
+	}
+}
+
+void GLFWMouseCallback(GLFWwindow *window, double xpos, double ypos)
+{
+	_window_manager.MouseMoveEvent({(int16)floor(xpos), (int16)floor(ypos)});
+}
+
+void GLFWScrollCallback(GLFWwindow *window, double xoffset, double yoffset)
+{
+	_window_manager.MouseWheelEvent((yoffset > 0) ? 1 : -1);
+}
+
+void GLFWResizeCallback(GLFWwindow *window, int width, int height)
+{
+	_video.SetResolution({width, height});
+}
+
+void GLFWErrorCallback(int err, const char *desc)
+{
+	_video.glfw_err = std::make_pair(err, std::string(desc));
+}
+
+/**
+ * Initialize the video system, preparing it for use.
+ * @param font_name Name of the font file to load.
+ * @param font_size Size of the font.
+ * @return Error message if initialization failed, else an empty text.
+ */
+bool VideoSystem::Initialize(const char *font_name, int font_size)
+{
+	if (this->initialized) return true;
+
+	glfwSetErrorCallback(GLFWErrorCallback);
+
+	if (!glfwInit()) return false;
+
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+
+	std::string caption = "FreeRCT ";
+	caption += _freerct_revision;
+	this->window = glfwCreateWindow(800, 600, caption.c_str(), nullptr, nullptr);
+	if (!this->window) {
+		glfwTerminate();
+		return false;
+	}
+
+	glfwSetKeyCallback(this->window,         GLFWKeyCallback);
+	glfwSetCharCallback(this->window,        GLFWTextInputCallback);
+	glfwSetCursorPosCallback(this->window,   GLFWMouseCallback);
+	glfwSetMouseButtonCallback(this->window, GLFWMouseButtonCallback);
+	glfwSetScrollCallback(this->window,      GLFWScrollCallback);
+	glfwSetWindowSizeCallback(this->window,  GLFWResizeCallback);
+
+	glfwMakeContextCurrent(this->window);
+
+	if (glewInit() != GLEW_OK) {
+		fprintf(stderr, "Failed to initialize GLEW\n");
+		return false;
+	}
+
+	this->GetResolutions();
+
+	this->SetResolution({800, 600}); // Allocates this->mem, return value is ignored.
+
+	/* SDL_CreateRGBSurfaceFrom() pretends to use a void* for the data,
+	 * but it's really treated as endian-specific uint32*.
+	 * But since the c++ compiler handles the endianness of _icon_data, it's ok. */
+/*	const uint32 rmask = 0xff000000;
+	const uint32 gmask = 0x00ff0000;
+	const uint32 bmask = 0x0000ff00;
+	const uint32 amask = 0x000000ff;
+	SDL_Surface *icon = SDL_CreateRGBSurfaceFrom((void *)_icon_data, 32, 32, 4 * 8, 4 * 32,
+	                                             rmask, gmask, bmask, amask);
+
+	if (icon != nullptr) {
+		SDL_SetWindowIcon(this->window, icon);
+		SDL_FreeSurface(icon);
+	} else {
+		printf("Could not set window icon (%s)\n", SDL_GetError());
+	}
+
+	this->font = TTF_OpenFont(font_name, font_size);
+	if (this->font == nullptr) {
+		std::string err = "TTF Opening font \"";
+		err += font_name;
+		err += "\" size ";
+		err += std::to_string(font_size);
+		err += " failed: ";
+		err += TTF_GetError();
+		TTF_Quit();
+		SDL_Quit();
+		delete[] this->mem;
+		return err;
+	}
+
+	this->font_height = TTF_FontLineSkip(this->font);*/
+	this->initialized = true;
+	this->dirty = true; // Ensure it gets painted.
+	this->missing_sprites = false;
+
+	this->digit_size.x = 0;
+	this->digit_size.y = 0;
+
+	return "";
+}
+
+void gl_check_error() {
+	int glerrorstate = 0;
+
+	glerrorstate = glGetError();
+	if (glerrorstate != GL_NO_ERROR) {
+
+		const char *errormsg;
+
+		//generate error message
+		switch (glerrorstate) {
+		case GL_INVALID_ENUM:
+			// An unacceptable value is specified for an enumerated argument.
+			// The offending command is ignored
+			// and has no other side effect than to set the error flag.
+			errormsg = "invalid enum passed to opengl call";
+			break;
+		case GL_INVALID_VALUE:
+			// A numeric argument is out of range.
+			// The offending command is ignored
+			// and has no other side effect than to set the error flag.
+			errormsg = "invalid value passed to opengl call";
+			break;
+		case GL_INVALID_OPERATION:
+			// The specified operation is not allowed in the current state.
+			// The offending command is ignored
+			// and has no other side effect than to set the error flag.
+			errormsg = "invalid operation performed during some state";
+			break;
+		case GL_INVALID_FRAMEBUFFER_OPERATION:
+			// The framebuffer object is not complete. The offending command
+			// is ignored and has no other side effect than to set the error flag.
+			errormsg = "invalid framebuffer operation";
+			break;
+		case GL_OUT_OF_MEMORY:
+			// There is not enough memory left to execute the command.
+			// The state of the GL is undefined,
+			// except for the state of the error flags,
+			// after this error is recorded.
+			errormsg = "out of memory, wtf?";
+			break;
+		case GL_STACK_UNDERFLOW:
+			// An attempt has been made to perform an operation that would
+			// cause an internal stack to underflow.
+			errormsg = "stack underflow";
+			break;
+		case GL_STACK_OVERFLOW:
+			// An attempt has been made to perform an operation that would
+			// cause an internal stack to overflow.
+			errormsg = "stack overflow";
+			break;
+		default:
+			// unknown error state
+			errormsg = "unknown error";
+		}
+		printf("OpenGL error state after running draw method: %d\n\t%s", glerrorstate, errormsg);
 	}
 }
 
 /** Main loop. Loops until told not to. */
 void VideoSystem::MainLoop()
 {
-	static const uint32 FRAME_DELAY = 30; // Number of milliseconds between two frames.
+	static const std::chrono::milliseconds FRAME_DELAY(33); // Number of milliseconds between two frames.
 	bool missing_sprites_check = false;
-	_finish = false;
 
-	while (!_finish) {
-		uint32 start = SDL_GetTicks();
+	while (!glfwWindowShouldClose(this->window)) {
+		auto start = std::chrono::high_resolution_clock::now();
 
-		OnNewFrame(FRAME_DELAY);
+		OnNewFrame(FRAME_DELAY.count());
+
+		{
+			GLuint texid, vertbuf, framebuf, depthbuf;
+
+			glGenFramebuffers(1, &framebuf);
+			glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+
+			/* texture */
+			glGenTextures(1, &texid);
+			glBindTexture(GL_TEXTURE_2D, texid);
+
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, this->vid_width, this->vid_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, this->mem);
+
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+			glGenRenderbuffers(1, &depthbuf);
+			glBindRenderbuffer(GL_RENDERBUFFER, depthbuf);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, this->vid_width, this->vid_height);
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthbuf);
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texid, 0);
+
+			// Set the list of draw buffers.
+			GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+			glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
+
+			// Always check that our framebuffer is ok
+			if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+				printf("lolwat\n");
+			}
+
+			static const GLfloat g_quad_vertex_buffer_data[] = {
+				-1.0f, -1.0f, 0.0f,
+				 1.0f, -1.0f, 0.0f,
+				-1.0f,  1.0f, 0.0f,
+				-1.0f,  1.0f, 0.0f,
+				 1.0f, -1.0f, 0.0f,
+				 1.0f,  1.0f, 0.0f
+			};
+
+			glGenBuffers(1, &vertbuf);
+			glBindBuffer(GL_ARRAY_BUFFER, vertbuf);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(g_quad_vertex_buffer_data), g_quad_vertex_buffer_data, GL_STATIC_DRAW);
+
+			glViewport(0, 0, this->vid_width, this->vid_height);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, texid);
+
+		}
+
+		gl_check_error();
+
+		glfwSwapBuffers(this->window);
 
 		/* Handle input events until time for the next frame has arrived. */
-		for (;;) {
-			if (HandleEvent()) break;
-		}
-		if (_finish) break;
+		glfwPollEvents();
+		if (glfwWindowShouldClose(this->window)) break;
 
-		uint32 now = SDL_GetTicks();
-		if (now >= start) { // No wrap around.
-			now -= start;
-			if (now < FRAME_DELAY) SDL_Delay(FRAME_DELAY - now); // Too early, wait until next frame.
+		auto now = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+		if (elapsed < FRAME_DELAY) {
+			std::this_thread::sleep_for(FRAME_DELAY - elapsed);
 		}
 
 		if (!missing_sprites_check && this->missing_sprites) {
@@ -484,9 +562,8 @@ void VideoSystem::MainLoop()
 void VideoSystem::Shutdown()
 {
 	if (this->initialized) {
-		TTF_CloseFont(this->font);
-		TTF_Quit();
-		SDL_Quit();
+		glfwDestroyWindow(this->window);
+		glfwTerminate();
 		delete[] this->mem;
 		this->initialized = false;
 		this->dirty = false;
@@ -499,10 +576,6 @@ void VideoSystem::Shutdown()
  */
 void VideoSystem::FinishRepaint()
 {
-	SDL_UpdateTexture(this->texture, nullptr, this->mem, this->GetXSize() * sizeof(uint32)); // Upload memory to the GPU.
-	SDL_RenderClear(this->renderer);
-	SDL_RenderCopy(this->renderer, this->texture, nullptr, nullptr);
-	SDL_RenderPresent(this->renderer);
 
 	MarkDisplayClean();
 }
@@ -719,10 +792,10 @@ void VideoSystem::BlitImages(const Point32 &pt, const ImageData *spr, uint16 num
  */
 void VideoSystem::GetTextSize(const uint8 *text, int *width, int *height)
 {
-	if (TTF_SizeUTF8(this->font, (const char *)text, width, height) != 0) {
+	//if (TTF_SizeUTF8(this->font, (const char *)text, width, height) != 0) {
 		*width = 0;
 		*height = 0;
-	}
+	//}
 }
 
 /**
@@ -774,6 +847,8 @@ void VideoSystem::GetNumberRangeSize(int64 smallest, int64 biggest, int *width, 
  */
 void VideoSystem::BlitText(const uint8 *text, uint32 colour, int xpos, int ypos, int width, Alignment align)
 {
+	return;
+	/*
 	SDL_Color col = {0, 0, 0}; // Font colour does not matter as only the bitmap is used.
 	SDL_Surface *surf = TTF_RenderUTF8_Solid(this->font, (const char *)text, col);
 	if (surf == nullptr) {
@@ -840,7 +915,7 @@ void VideoSystem::BlitText(const uint8 *text, uint32 colour, int xpos, int ypos,
 		h--;
 	}
 
-	SDL_FreeSurface(surf);
+	SDL_FreeSurface(surf);*/
 }
 
 /**

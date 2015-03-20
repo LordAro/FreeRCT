@@ -77,18 +77,18 @@ ENDIF()
 add_dependencies(freerct rcd)
 
 # Library detection
-find_package(SDL2 REQUIRED)
-IF(SDL2_FOUND)
-	include_directories("${SDL2_INCLUDE_DIR}")
-	target_link_libraries(freerct ${SDL2_LIBRARY})
-ENDIF()
+find_package(OpenGL REQUIRED)
+include_directories(${OPENGL_INCLUDE_DIRS})
+target_link_libraries(freerct ${OPENGL_LIBRARIES})
 
-find_package(SDL2_ttf REQUIRED)
-# Legacy variable names
-IF(SDL2_TTF_FOUND)
-	include_directories("${SDL2TTF_INCLUDE_DIR}")
-	target_link_libraries(freerct ${SDL2TTF_LIBRARY})
-ENDIF()
+find_package(GLEW REQUIRED)
+include_directories(${GLEW_INCLUDE_DIRS})
+target_link_libraries(freerct ${GLEW_LIBRARIES})
+
+find_package(PkgConfig REQUIRED)
+pkg_search_module(GLFW REQUIRED glfw3)
+include_directories(${GLFW_INCLUDE_DIRS})
+target_link_libraries(freerct ${GLFW_LIBRARIES})
 
 # Determine version string
 find_package(Git)
@@ -116,7 +116,6 @@ configure_file("${CMAKE_SOURCE_DIR}/src/rev.cpp.in" "${CMAKE_SOURCE_DIR}/src/rev
 # TODO: Extend for debug/release versions
 IF(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W2")
-	# Note: SDL must be dynamic
 ELSE()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -pedantic -Wall")
 ENDIF()

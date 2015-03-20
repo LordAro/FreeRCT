@@ -21,6 +21,8 @@
 #include "fileio.h"
 #include "gamecontrol.h"
 
+#include <cstdarg>
+
 void InitMouseModes();
 
 /**
@@ -118,9 +120,8 @@ int freerct_main(int argc, char **argv)
 	}
 
 	/* Initialize video. */
-	std::string err = _video.Initialize(font_path, font_size);
-	if (!err.empty()) {
-		fprintf(stderr, "Failed to initialize window or the font (%s), aborting\n", err.c_str());
+	if (!_video.Initialize(font_path, font_size)) {
+		fprintf(stderr, "Failed to initialize window or the font (%s), aborting\n", _video.glfw_err.second.c_str());
 		return 1;
 	}
 

@@ -11,8 +11,8 @@
 #define VIDEO_H
 
 #include <set>
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 #include "geometry.h"
 #include "palette.h"
 
@@ -58,7 +58,7 @@ public:
 	VideoSystem();
 	~VideoSystem();
 
-	std::string Initialize(const char *font_name, int font_size);
+	bool Initialize(const char *font_name, int font_size);
 	bool SetResolution(const Point32 &res);
 	void GetResolutions();
 	void MainLoop();
@@ -159,18 +159,19 @@ public:
 
 	bool missing_sprites; ///< Indicates that some sprites cannot be drawn.
 	std::set<Point32> resolutions; ///< Set (for automatic sorting) of available resolutions.
+	std::pair<int, std::string> glfw_err; ///< Last error returned by glfw.
+	GLFWwindow *window;         ///< %Window of the application.
 
 private:
+	GLuint texture_id;
+	GLuint frame_buffer_id;
 	int vid_width;    ///< Width of the application window.
 	int vid_height;   ///< Height of the application window.
 	int font_height;  ///< Height of a line of text in pixels.
 	bool initialized; ///< Video system is initialized.
 	bool dirty;       ///< Video display needs being repainted.
 
-	TTF_Font *font;             ///< Opened text font.
-	SDL_Window *window;         ///< %Window of the application.
-	SDL_Renderer *renderer;     ///< GPU renderer to the application window.
-	SDL_Texture *texture;       ///< GPU Texture storage of the application window.
+	//TTF_Font *font;             ///< Opened text font.
 	uint32 *mem;                ///< Memory used for blitting the application display.
 	ClippedRectangle blit_rect; ///< %Rectangle to blit in.
 	Point16 digit_size;         ///< Size of largest digit (initially a zero-size).
