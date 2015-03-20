@@ -70,11 +70,11 @@ Window::~Window()
 }
 
 /**
- * Set the initial size of a window.
- * @param width Initial width of the new window.
- * @param height Initial height of the new window.
+ * Set the size of a window. For #GuiWindow, this should be done after initialization.
+ * @param width New width of the new window.
+ * @param height New height of the new window.
  */
-void Window::SetSize(uint width, uint height)
+void Window::SetSize(uint16 width, uint16 height)
 {
 	this->rect.width = width;
 	this->rect.height = height;
@@ -329,14 +329,25 @@ GuiWindow::~GuiWindow()
 	delete[] this->widgets;
 }
 
-/**
- * Set the size of the window.
- * @param width Initial width of the new window.
- * @param height Initial height of the new window.
- */
-void GuiWindow::SetSize(uint width, uint height)
+void GuiWindow::SetSize(uint16 width, uint16 height)
 {
-	// XXX Do nothing for now, in the future, this should cause a window resize.
+	/* Normalize width and height. */
+	if (this->tree->resize_x == 0) {
+		width = this->tree->min_x;
+	} else {
+		width = std::max(width, this->tree->min_x);
+		width -= (width - this->tree->min_x) % this->tree->resize_x;
+	}
+
+	if (this->tree->resize_y == 0) {
+		height = this->tree->min_y;
+	} else {
+		height = std::max(height, this->tree->min_y);
+		height -= (height - this->tree->min_y) % this->tree->resize_y;
+	}
+
+	Rectangle16 rect(0, 0, width, height);
+	this->tree->SetSize(rect);
 }
 
 /**
@@ -656,7 +667,10 @@ void WindowManager::CloseAllWindows()
 void WindowManager::ResetAllWindows()
 {
 	for (Window *w = this->top; w != nullptr; w = w->lower) {
-		w->ResetSize(); /// \todo This call should preserve the window size as much as possible.
+		uint16 x_size = w->rect.width;
+		uint16 y_size = w->rect.height;
+		w->ResetSize();
+		w->SetSize(x_size, y_size);
 	}
 	_video.MarkDisplayDirty();
 }

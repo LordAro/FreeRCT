@@ -78,6 +78,7 @@ public:
 
 	virtual void SetupMinimalSize(GuiWindow *w, BaseWidget **wid_array);
 	virtual void SetSmallestSizePosition(const Rectangle16 &rect);
+	virtual void SetSize(const Rectangle16 &rect);
 	virtual void Draw(const GuiWindow *w);
 	virtual BaseWidget *GetWidgetByPosition(const Point16 &pt);
 	virtual void AutoRaiseButtons(const Point32 &base);
@@ -266,11 +267,15 @@ public:
 
 	void SetupMinimalSize(GuiWindow *w, BaseWidget **wid_array) override;
 	void SetSmallestSizePosition(const Rectangle16 &rect) override;
+	virtual void SetSize(const Rectangle16 &rect) override;
 	void Draw(const GuiWindow *w) override;
 	BaseWidget *GetWidgetByPosition(const Point16 &pt) override;
 	void AutoRaiseButtons(const Point32 &base) override;
 
 	BaseWidget *child; ///< Child widget displayed on top of the background widget.
+
+protected:
+	Rectangle16 CalculateChildSize(const Rectangle16 &outer);
 };
 
 /**
@@ -290,6 +295,7 @@ struct RowColData {
 	uint16 min_size; ///< Minimal size.
 	uint16 fill;     ///< Fill step.
 	uint16 resize;   ///< Resize step.
+	uint16 size;     ///< Allocated size during IntermediateWidget::SetSize.
 
 	void InitRowColData();
 	void Merge(uint16 min_size, uint16 fill, uint16 resize);
@@ -306,6 +312,7 @@ public:
 
 	void SetupMinimalSize(GuiWindow *w, BaseWidget **wid_array) override;
 	void SetSmallestSizePosition(const Rectangle16 &rect) override;
+	virtual void SetSize(const Rectangle16 &rect) override;
 	void Draw(const GuiWindow *w) override;
 	BaseWidget *GetWidgetByPosition(const Point16 &pt) override;
 	void AutoRaiseButtons(const Point32 &base) override;

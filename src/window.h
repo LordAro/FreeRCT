@@ -147,7 +147,7 @@ public:
 	Window *higher; ///< %Window above this window (managed by #WindowManager).
 	Window *lower;  ///< %Window below this window (managed by #WindowManager).
 
-	virtual void SetSize(uint width, uint height);
+	virtual void SetSize(uint16 width, uint16 height);
 	void SetPosition(int x, int y);
 	void SetPosition(Point32 pos);
 	virtual Point32 OnInitialPosition();
@@ -180,7 +180,7 @@ public:
 	virtual void UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid);
 	virtual void SetWidgetStringParameters(WidgetNumber wid_num) const;
 	virtual void DrawWidget(WidgetNumber wid_num, const BaseWidget *wid) const;
-	virtual void SetSize(uint width, uint height);
+	virtual void SetSize(uint16 width, uint16 height) override;
 	StringID TranslateStringNumber(StringID str_id) const;
 	virtual void ResetSize();
 

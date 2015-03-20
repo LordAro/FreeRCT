@@ -175,6 +175,16 @@ void BaseWidget::SetSmallestSizePosition(const Rectangle16 &rect)
 }
 
 /**
+ * Change the size of a widget.
+ * @param rect New size to use, should be minimal size and a number of resize steps.
+ */
+void BaseWidget::SetSize(const Rectangle16 &rect)
+{
+	assert(this->min_x <= rect.width && this->min_y <= rect.height);
+	this->pos = rect;
+}
+
+/**
  * Draw the widget.
  * @param w %Window being drawn.
  */
@@ -917,6 +927,28 @@ void BackgroundWidget::SetupMinimalSize(GuiWindow *w, BaseWidget **wid_array)
 	if (this->child == nullptr && this->number >= 0) w->UpdateWidgetSize(this->number, this);
 }
 
+/**
+ * Compute the position and size of the child widget, given the position and size of the background.
+ * @param outer Position and size of the background.
+ * @return Position and size of the child.
+ */
+Rectangle16 BackgroundWidget::CalculateChildSize(const Rectangle16 &outer)
+{
+	uint16 left = outer.base.x;
+	uint16 right = left + outer.width; // One pixel further than right, actually.
+	left += this->paddings[PAD_LEFT] + _gui_sprites.panel.border_left;
+	right -= this->paddings[PAD_RIGHT] + _gui_sprites.panel.border_right;
+	if (right < left) right = left;
+
+	uint16 top = outer.base.y;
+	uint16 bottom = top + outer.height; // One pixel below the bottom, actually.
+	top += this->paddings[PAD_TOP] + _gui_sprites.panel.border_top;
+	bottom -= this->paddings[PAD_BOTTOM] + _gui_sprites.panel.border_bottom;
+	if (bottom < top) bottom = top;
+
+	return Rectangle16(left, top, right - left, bottom - top);
+}
+
 void BackgroundWidget::SetSmallestSizePosition(const Rectangle16 &rect)
 {
 	this->pos = rect;
@@ -924,20 +956,19 @@ void BackgroundWidget::SetSmallestSizePosition(const Rectangle16 &rect)
 	this->min_y = rect.height;
 
 	if (this->child != nullptr) {
-		uint16 left = rect.base.x;
-		uint16 right = left + rect.width; // One pixel further than right, actually.
-		left += this->paddings[PAD_LEFT] + _gui_sprites.panel.border_left;
-		right -= this->paddings[PAD_RIGHT] + _gui_sprites.panel.border_right;
-		if (right < left) right = left;
-
-		uint16 top = rect.base.y;
-		uint16 bottom = top + rect.height; // One pixel below the bottom, actually.
-		top += this->paddings[PAD_TOP] + _gui_sprites.panel.border_top;
-		bottom -= this->paddings[PAD_BOTTOM] + _gui_sprites.panel.border_bottom;
-		if (bottom < top) bottom = top;
-
-		Rectangle16 rect_child(left, top, right - left, bottom - top);
+		Rectangle16 rect_child = CalculateChildSize(rect);
 		this->child->SetSmallestSizePosition(rect_child);
+	}
+}
+
+void BackgroundWidget::SetSize(const Rectangle16 &rect)
+{
+	assert(this->min_x <= rect.width && this->min_y <= rect.height);
+	this->pos = rect;
+
+	if (this->child != nullptr) {
+		Rectangle16 rect_child = CalculateChildSize(rect);
+		this->child->SetSize(rect_child);
 	}
 }
 
@@ -1299,6 +1330,88 @@ void IntermediateWidget::SetSmallestSizePosition(const Rectangle16 &rect)
 			left += this->columns[x].min_size;
 		}
 		top += this->rows[y].min_size;
+	}
+}
+
+void IntermediateWidget::SetSize(const Rectangle16 &rect)
+{
+	assert(this->min_x <= rect.width && this->min_y <= rect.height);
+	this->pos = rect;
+
+	/* Distribute additional vertical size over resizable children, and store in RowColData::size. */
+	uint16 diff = this->paddings[PAD_BOTTOM];
+	uint8 count = 0;
+	uint16 max_step = 0;
+	for (uint8 y = 0; y < this->num_rows; y++) {
+		diff += ((y == 0) ? this->paddings[PAD_TOP] : this->paddings[PAD_VERTICAL]) + this->rows[y].min_size;
+		if (this->rows[y].resize > 0) {
+			if (count == 0 || this->rows[y].resize > max_step) max_step = this->rows[y].resize;
+			count++;
+		}
+	}
+	diff = (diff < rect.height) ? rect.height - diff : 0;
+
+	while (diff > 0 && count > 0) {
+		uint16 new_max = 0;
+		for (uint8 y = 0; y < this->num_rows; y++) {
+			if (this->rows[y].resize == 0 || this->rows[y].resize > max_step) continue;
+			if (this->rows[y].resize == max_step) {
+				uint16 increment = diff / count;
+				increment -= increment % max_step;
+				this->rows[y].size = this->rows[y].min_size + increment;
+				diff -= increment;
+				count--;
+				continue;
+			}
+			new_max = std::max(new_max, this->rows[y].resize);
+		}
+		max_step = new_max;
+	}
+
+	/* Distribute additional horizontal size over resizable children, and store in RowColData::size. */
+	diff = this->paddings[PAD_RIGHT];
+	count = 0;
+	max_step = 0;
+	for (uint8 x = 0; x < this->num_cols; x++) {
+		diff += ((x == 0) ? this->paddings[PAD_LEFT] : this->paddings[PAD_HORIZONTAL]) + this->columns[x].min_size;
+		if (this->columns[x].resize > 0) {
+			if (count == 0 || this->columns[x].resize > max_step) max_step = this->columns[x].resize;
+			count++;
+		}
+	}
+	diff = (diff < rect.width) ? rect.width - diff : 0;
+
+	while (diff > 0 && count > 0) {
+		uint16 new_max = 0;
+		for (uint8 x = 0; x < this->num_cols; x++) {
+			if (this->columns[x].resize == 0 || this->columns[x].resize > max_step) continue;
+			if (this->columns[x].resize == max_step) {
+				uint16 increment = diff / count;
+				increment -= increment % max_step;
+				this->columns[x].size = this->columns[x].min_size + increment;
+				diff -= increment;
+				count--;
+				continue;
+			}
+			new_max = std::max(new_max, this->columns[x].resize);
+		}
+		max_step = new_max;
+	}
+
+	/* Tell the children about the allocated sizes. */
+	uint16 top = rect.base.y;
+	for (uint8 y = 0; y < this->num_rows; y++) {
+		top += (y == 0) ? this->paddings[PAD_TOP] : this->paddings[PAD_VERTICAL];
+		uint16 left = rect.base.x;
+		for (uint8 x = 0; x < this->num_cols; x++) {
+			left += (x == 0) ? this->paddings[PAD_LEFT] : this->paddings[PAD_HORIZONTAL];
+			BaseWidget *bw = this->childs[y * (uint16)this->num_cols + x];
+			Rectangle16 rect2(left, top, this->columns[x].size, this->rows[y].size);
+			bw->SetSize(rect2);
+
+			left += this->columns[x].size;
+		}
+		top += this->rows[y].size;
 	}
 }
 
