@@ -33,18 +33,17 @@ public:
 	Date();
 	Date(int pday, int pmonth, int pyear, int pfrac = 0);
 	Date(CompressedDate cd);
-	Date(const Date &d);
-	Date &operator=(const Date &d);
-	~Date()
-	{
-	}
-
-	void Initialize();
+	Date(const Date &d) = default;
+	Date &operator=(const Date &d) = default;
 
 	CompressedDate Compress() const;
 
 	int GetNextMonth() const;
 	int GetPreviousMonth() const;
+
+	void OnTick();
+	void Load(Loader &ldr);
+	void Save(Saver &svr);
 
 	int day;   ///< Day of the month, 1-based.
 	int month; ///< Month of the year, 1-based.
@@ -52,9 +51,6 @@ public:
 	int frac;  ///< Day fraction, 0-based.
 };
 
-void DateOnTick();
-void LoadDate(Loader &ldr);
-void SaveDate(Saver &svr);
 
 extern Date _date;
 extern const int _days_per_month[13];

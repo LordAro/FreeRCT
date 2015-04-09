@@ -9,6 +9,7 @@
 
 #include "stdafx.h"
 #include "dates.h"
+#include "bitmath.h"
 #include "gamecontrol.h"
 
 assert_compile(TICK_COUNT_PER_DAY < (1 << CDB_FRAC_LENGTH)); ///< Day length should stay within the fraction limit.
@@ -19,6 +20,22 @@ static const int LAST_MONTH = 9;  ///< Last month in the year that the park is o
 
 Date _date; ///< %Date in the program.
 
+/** Default constructor. */
+Date::Date() : Date(1, FIRST_MONTH, 1, 0)
+{
+}
+
+
+/**
+ * Constructor od a date from a compressed date.
+ * @param cd Compressed date source.
+ */
+Date::Date(CompressedDate cd)
+	: Date(GB(cd, CDB_DAY_START,  CDB_DAY_LENGTH),  GB(cd, CDB_MONTH_START, CDB_MONTH_LENGTH),
+	       GB(cd, CDB_YEAR_START, CDB_YEAR_LENGTH), GB(cd, CDB_FRAC_START,  CDB_FRAC_LENGTH))
+{
+}
+
 /**
  * Constructor for a specific date.
  * @param pday Day of the month (1-based).
@@ -28,70 +45,10 @@ Date _date; ///< %Date in the program.
  */
 Date::Date(int pday, int pmonth, int pyear, int pfrac) : day(pday), month(pmonth), year(pyear), frac(pfrac)
 {
-	assert(pyear > 0 && pyear < (1 << CDB_YEAR_LENGTH));
-	assert(pmonth > 0 && pmonth < 13);
 	assert(pday > 0 && pday <= _days_per_month[pmonth]);
-	assert(pfrac >= 0 && pfrac < TICK_COUNT_PER_DAY);
-}
-
-/** Default constructor. */
-Date::Date() : day(1), month(1), year(1), frac(0)
-{
-}
-
-/**
- * Copy constructor.
- * @param d Existing date.
- */
-Date::Date(const Date &d) : day(d.day), month(d.month), year(d.year), frac(d.frac)
-{
-}
-
-/**
- * Constructor od a date from a compressed date.
- * @param cd Compressed date source.
- */
-Date::Date(CompressedDate cd)
-{
-	int pyear  = (cd >> CDB_YEAR_START)  & ((1 << CDB_YEAR_LENGTH)  - 1);
-	int pmonth = (cd >> CDB_MONTH_START) & ((1 << CDB_MONTH_LENGTH) - 1);
-	int pday   = (cd >> CDB_DAY_START)   & ((1 << CDB_DAY_LENGTH)   - 1);
-	int pfrac  = (cd >> CDB_FRAC_START)  & ((1 << CDB_FRAC_LENGTH)  - 1);
-
-	assert(pyear > 0 && pyear < (1 << CDB_YEAR_LENGTH));
 	assert(pmonth > 0 && pmonth < 13);
-	assert(pday > 0 && pday <= _days_per_month[pmonth]);
+	assert(pyear > 0 && pyear < (1 << CDB_YEAR_LENGTH));
 	assert(pfrac >= 0 && pfrac < TICK_COUNT_PER_DAY);
-
-	this->year  = pyear;
-	this->month = pmonth;
-	this->day   = pday;
-	this->frac  = pfrac;
-}
-
-/**
- * Assignment operator.
- * @param d Existing date.
- * @return Assigned value.
- */
-Date &Date::operator=(const Date &d)
-{
-	if (this != &d) {
-		this->day = d.day;
-		this->month = d.month;
-		this->year = d.year;
-		this->frac = d.frac;
-	}
-	return *this;
-}
-
-/** Initialize the date for the start of a game. */
-void Date::Initialize()
-{
-	this->day = 1;
-	this->month = FIRST_MONTH;
-	this->year = 1;
-	this->frac = 0;
 }
 
 /**
@@ -125,32 +82,32 @@ int Date::GetNextMonth() const
 
 /**
  * Update the day.
- * @todo Care about leap years.
+ * @todo Care about leap years?
  */
-void DateOnTick()
+void Date::OnTick()
 {
 	bool newmonth = false;
 	bool newyear  = false;
 
 	/* New tick. */
-	_date.frac++;
-	if (_date.frac < TICK_COUNT_PER_DAY) return;
+	this->frac++;
+	if (this->frac < TICK_COUNT_PER_DAY) return;
 
 	/* New day. */
-	_date.frac = 0;
-	_date.day++;
+	this->frac = 0;
+	this->day++;
 
 	/* New month. */
-	if (_date.day > _days_per_month[_date.month]) {
-		bool is_last_month = (_date.month == LAST_MONTH);
-		_date.day = 1;
-		_date.month++;
+	if (this->day > _days_per_month[this->month]) {
+		bool is_last_month = (this->month == LAST_MONTH);
+		this->day = 1;
+		this->month++;
 		newmonth = true;
 
 		/* New year. */
-		if (is_last_month || _date.month > 12) {
-			_date.month = FIRST_MONTH;
-			_date.year++;
+		if (is_last_month || this->month > 12) {
+			this->month = FIRST_MONTH;
+			this->year++;
 			newyear = true;
 		}
 	}
@@ -164,13 +121,13 @@ void DateOnTick()
  * Load the current date from the save game.
  * @param ldr Input stream to load from.
  */
-void LoadDate(Loader &ldr)
+void Date::Load(Loader &ldr)
 {
 	uint32 version = ldr.OpenBlock("DATE");
 	if (version == 1) {
-		_date = Date(ldr.GetLong());
+		*this = Date(ldr.GetLong());
 	} else {
-		_date = Date();
+		*this = Date();
 		if (version != 0) ldr.SetFailMessage("Unknown date block number");
 	}
 	ldr.CloseBlock();
@@ -180,9 +137,9 @@ void LoadDate(Loader &ldr)
  * Save the current date to the save game.
  * @param svr Output stream to save to.
  */
-void SaveDate(Saver &svr)
+void Date::Save(Saver &svr)
 {
 	svr.StartBlock("DATE", 1);
-	svr.PutLong(_date.Compress());
+	svr.PutLong(this->Compress());
 	svr.EndBlock();
 }

@@ -51,7 +51,7 @@ void OnNewFrame(uint32 frame_delay)
 {
 	_window_manager.Tick();
 	_guests.DoTick();
-	DateOnTick();
+	_date.OnTick();
 	_guests.OnAnimate(frame_delay);
 	_rides_manager.OnAnimate(frame_delay);
 }
@@ -104,7 +104,7 @@ void GameControl::RunAction()
 		case GCA_SAVE_GAME:
 			SaveGameFile(this->fname.c_str());
 			break;
-		
+
 		case GCA_QUIT:
 			this->running = false;
 			break;
@@ -160,7 +160,6 @@ void GameControl::NewLevel()
 	_world.SetTileOwnerRect(2, 18, 16, 2, OWN_FOR_SALE);
 
 	_finances_manager.SetScenario(_scenario);
-	_date.Initialize();
 	_weather.Initialize();
 }
 

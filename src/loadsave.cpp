@@ -87,7 +87,7 @@ void Loader::CloseBlock()
 uint8 Loader::GetByte()
 {
 	if (this->fp == nullptr || this->IsFail()) return 0;
-	
+
 	if (this->cache_count > 0) {
 		this->cache_count--;
 		return this->cache[this->cache_count];
@@ -322,7 +322,7 @@ static void LoadElements(Loader &ldr)
 
 	Loader reset_loader(nullptr);
 
-	LoadDate(ldr);
+	_date.Load(ldr);
 	_world.Load((version >= 3) ? ldr : reset_loader);
 	Random::Load(ldr);
 	_finances_manager.Load((version >= 2) ? ldr : reset_loader);
@@ -342,7 +342,7 @@ static void SaveElements(Saver &svr)
 	svr.StartBlock("FCTS", 5);
 	svr.EndBlock();
 
-	SaveDate(svr);
+	_date.Save(svr);
 	_world.Save(svr);
 	Random::Save(svr);
 	_finances_manager.Save(svr);
@@ -389,4 +389,3 @@ bool SaveGameFile(const char *fname)
 	fclose(fp);
 	return true;
 }
-
