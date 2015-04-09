@@ -54,6 +54,7 @@ void OnNewFrame(uint32 frame_delay)
 	_date.OnTick();
 	_guests.OnAnimate(frame_delay);
 	_rides_manager.OnAnimate(frame_delay);
+	_window_manager.OnAnimate();
 }
 
 GameControl::GameControl()

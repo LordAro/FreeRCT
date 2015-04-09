@@ -343,6 +343,7 @@ public:
 	void MouseButtonEvent(MouseButtons button, bool pressed);
 	void MouseWheelEvent(int direction);
 	bool KeyEvent(WmKeyCode key_code, const uint8 *symbol);
+	void OnAnimate();
 	void OnTick();
 
 	/**

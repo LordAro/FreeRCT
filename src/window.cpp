@@ -1077,7 +1077,7 @@ bool WindowManager::KeyEvent(WmKeyCode key_code, const uint8 *symbol)
  * @todo [medium/difficult] Do this much less stupid.
  * @ingroup window_group
  */
-void WindowManager::UpdateWindows()
+void WindowManager::OnAnimate()
 {
 	if (!_video.DisplayNeedsRepaint()) return;
 
@@ -1097,7 +1097,7 @@ void WindowManager::UpdateWindows()
 /** A tick has passed, update whatever must be updated. */
 void WindowManager::OnTick()
 {
-	Window *w = _window_manager.top;
+	Window *w = this->top;
 	while (w != nullptr) {
 		if (w->timeout > 0) {
 			w->timeout--;
@@ -1105,8 +1105,6 @@ void WindowManager::OnTick()
 		}
 		w = w->lower;
 	}
-
-	this->UpdateWindows();
 }
 
 /**
