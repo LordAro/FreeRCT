@@ -62,7 +62,7 @@ public:
 	~FinancesManager();
 
 	const Finances &GetFinances();
-	void AdvanceMonth();
+	void OnNewMonth();
 	void CashToStrParams();
 	void SetScenario(const Scenario &s);
 

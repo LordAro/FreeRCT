@@ -218,7 +218,7 @@ void Guests::OnAnimate(int delay)
 }
 
 /** A new frame arrived, perform the daily call for some of the guests. */
-void Guests::DoTick()
+void Guests::OnTick()
 {
 	this->daily_frac++;
 	int end_index = std::min(this->daily_frac * GUEST_BLOCK_SIZE / TICK_COUNT_PER_DAY, GUEST_BLOCK_SIZE);

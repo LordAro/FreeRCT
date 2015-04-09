@@ -30,7 +30,7 @@ void OnNewYear()
 /** Runs various procedures that have to be done monthly. */
 void OnNewMonth()
 {
-	_finances_manager.AdvanceMonth();
+	_finances_manager.OnNewMonth();
 	_rides_manager.OnNewMonth();
 }
 
@@ -49,8 +49,8 @@ void OnNewDay()
 */
 void OnNewFrame(uint32 frame_delay)
 {
-	_window_manager.Tick();
-	_guests.DoTick();
+	_window_manager.OnTick();
+	_guests.OnTick();
 	_date.OnTick();
 	_guests.OnAnimate(frame_delay);
 	_rides_manager.OnAnimate(frame_delay);

@@ -93,7 +93,7 @@ public:
 	}
 
 	void OnAnimate(int delay);
-	void DoTick();
+	void OnTick();
 	void OnNewDay();
 
 	void NotifyRideDeletion(const RideInstance *);

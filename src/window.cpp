@@ -1095,7 +1095,7 @@ void WindowManager::UpdateWindows()
 }
 
 /** A tick has passed, update whatever must be updated. */
-void WindowManager::Tick()
+void WindowManager::OnTick()
 {
 	Window *w = _window_manager.top;
 	while (w != nullptr) {

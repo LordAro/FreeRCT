@@ -150,7 +150,7 @@ const Finances &FinancesManager::GetFinances()
 }
 
 /** Complete the current month and transition to new finances object. */
-void FinancesManager::AdvanceMonth()
+void FinancesManager::OnNewMonth()
 {
 	this->num_used = std::min(this->num_used + 1, NUM_FINANCE_HISTORY);
 	this->current = (this->current + 1) % NUM_FINANCE_HISTORY;

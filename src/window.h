@@ -343,7 +343,7 @@ public:
 	void MouseButtonEvent(MouseButtons button, bool pressed);
 	void MouseWheelEvent(int direction);
 	bool KeyEvent(WmKeyCode key_code, const uint8 *symbol);
-	void Tick();
+	void OnTick();
 
 	/**
 	 * Mouse moved in the viewport. Forward the call to the selector window.
