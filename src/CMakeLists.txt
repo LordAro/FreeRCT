@@ -118,7 +118,7 @@ IF(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W2")
 	# Note: SDL must be dynamic
 ELSE()
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -pedantic -Wall")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -Wall -pedantic -Werror")
 ENDIF()
 # Add platform define
 IF(UNIX)

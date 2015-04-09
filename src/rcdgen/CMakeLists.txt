@@ -87,7 +87,7 @@ IF(MSVC)
 	# Accept zlib from OpenTTD useful compiled by previous Visual Studio version.
 	set_target_properties(rcdgen PROPERTIES LINK_FLAGS "/SAFESEH:NO")
 ELSE()
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -pedantic -Wall")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -Wall -pedantic -Werror")
 ENDIF()
 
 IF(NOT WIN32 AND BISON_FOUND AND FLEX_FOUND)
