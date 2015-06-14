@@ -67,7 +67,6 @@ Window::Window(WindowTypes wtype, WindowNumber wnumber) : rect(0, 0, 0, 0), wtyp
 Window::~Window()
 {
 	_window_manager.RemoveFromStack(this);
-	this->MarkDirty();
 }
 
 /**
@@ -219,15 +218,6 @@ Point32 Window::OnInitialPosition()
 }
 
 /**
- * Mark windows as being dirty (needing a repaint).
- * @todo Marking the whole display as needing a repaint is too crude.
- */
-void Window::MarkDirty()
-{
-	_video.MarkDisplayDirty(this->rect);
-}
-
-/**
  * Paint the window to the screen.
  * @param selector Mouse mode selector to render.
  * @note The window manager already locked the surface.
@@ -328,9 +318,6 @@ GuiWindow::GuiWindow(WindowTypes wtype, WindowNumber wnumber) : Window(wtype, wn
 
 GuiWindow::~GuiWindow()
 {
-	/* The derived window should have released the selector before arriving here,
-	 * as release may cause a MarkDirty call.
-	 */
 	assert(this->selector == nullptr);
 
 	delete this->tree;
@@ -401,8 +388,6 @@ void GuiWindow::SetupWidgetTree(const WidgetPart *parts, int length)
 	Point32 pt = this->OnInitialPosition();
 	this->SetPosition(pt.x, pt.y);
 	this->initialized = true;
-
-	this->MarkDirty();
 }
 
 /**
@@ -480,7 +465,6 @@ WmMouseEvent GuiWindow::OnMouseButtonEvent(uint8 state)
 			/* For mono-stable buttons, 'press' the button, and set a timeout for 'releasing' it again. */
 			lw->SetPressed(true);
 			this->timeout = 4;
-			lw->MarkDirty(this->rect.base);
 		}
 		ScrollbarWidget *sw = dynamic_cast<ScrollbarWidget *>(bw);
 		if (sw != nullptr) {
@@ -542,7 +526,6 @@ void GuiWindow::SetWidgetChecked(WidgetNumber widget, bool value)
 	LeafWidget *lw = this->GetWidget<LeafWidget>(widget);
 	if (lw->IsChecked() != value) {
 		lw->SetChecked(value);
-		lw->MarkDirty(this->rect.base);
 	}
 }
 
@@ -566,7 +549,6 @@ void GuiWindow::SetWidgetPressed(WidgetNumber widget, bool value)
 	LeafWidget *lw = this->GetWidget<LeafWidget>(widget);
 	if (lw->IsPressed() != value) {
 		lw->SetPressed(value);
-		lw->MarkDirty(this->rect.base);
 	}
 }
 
@@ -590,7 +572,6 @@ void GuiWindow::SetWidgetShaded(WidgetNumber widget, bool value)
 	LeafWidget *lw = this->GetWidget<LeafWidget>(widget);
 	if (lw->IsShaded() != value) {
 		lw->SetShaded(value);
-		lw->MarkDirty(this->rect.base);
 	}
 }
 
@@ -654,7 +635,6 @@ void GuiWindow::SetHighlight(bool value)
 	} else {
 		this->flags &= ~WF_HIGHLIGHT;
 	}
-	this->MarkDirty();
 }
 
 /**
@@ -693,7 +673,6 @@ void WindowManager::ResetAllWindows()
 	for (Window *w = this->top; w != nullptr; w = w->lower) {
 		w->ResetSize(); /// \todo This call should preserve the window size as much as possible.
 	}
-	_video.MarkDisplayDirty();
 }
 
 /**
@@ -749,7 +728,6 @@ void WindowManager::AddToStack(Window *w)
 		this->viewport = static_cast<Viewport *>(w);
 	}
 
-	if (this->select_valid && this->select_window != nullptr) this->select_window->selector->MarkDirty();
 	this->select_valid = false;
 
 	uint w_prio = GetWindowZPriority(w->wtype);
@@ -786,7 +764,6 @@ void WindowManager::RemoveFromStack(Window *w)
 
 	if (w == this->viewport) this->viewport = nullptr;
 
-	if (this->select_valid && this->select_window != nullptr) this->select_window->selector->MarkDirty();
 	this->select_valid = false;
 
 	if (w->higher == nullptr) {
@@ -814,7 +791,6 @@ void WindowManager::RaiseWindow(Window *w)
 	if (w != this->top && GetWindowZPriority(w->wtype) >= GetWindowZPriority(w->higher->wtype)) {
 		this->RemoveFromStack(w);
 		this->AddToStack(w);
-		w->MarkDirty();
 	}
 }
 
@@ -837,20 +813,15 @@ void WindowManager::SetSelector(GuiWindow *w, MouseModeSelector *selector)
 		if (selector != nullptr) this->select_valid = false;
 
 	} else if (this->select_window == w) { // Currently selected window changes its selector.
-		this->select_window->selector->MarkDirty();
 		this->select_window->selector = selector;
 		if (selector == nullptr) {
 			this->select_valid = false;
-		} else {
-			this->select_window->selector->MarkDirty();
 		}
 
 	} else if (w->selector != nullptr) { // A non-selected window changes its selector.
 		w->selector = selector; // w is definitely below this->select_window.
 	} else {
 		w->selector = selector; // w may be above this->select_window, invalidate cache.
-
-		this->select_window->selector->MarkDirty();
 		this->select_valid = false;
 	}
 }
@@ -869,7 +840,6 @@ GuiWindow *WindowManager::GetSelector()
 		if (gw != nullptr && gw->selector != nullptr) {
 			this->select_window = gw;
 			this->select_valid = true;
-			this->select_window->selector->MarkDirty();
 			return this->select_window;
 		}
 		w = w->lower;
@@ -939,10 +909,8 @@ void WindowManager::MouseMoveEvent(const Point16 &pos)
 				this->mouse_mode = WMMM_PASS_THROUGH;
 				return;
 			}
-			this->current_window->MarkDirty();
 			assert(this->current_window->wtype != WC_MAINDISPLAY); // Cannot move the main display!
 			this->current_window->SetPosition(pos.x - this->move_offset.x, pos.y - this->move_offset.y);
-			this->current_window->MarkDirty();
 			break;
 		}
 
@@ -1079,8 +1047,6 @@ bool WindowManager::KeyEvent(WmKeyCode key_code, const uint8 *symbol)
  */
 void WindowManager::OnAnimate()
 {
-	if (!_video.DisplayNeedsRepaint()) return;
-
 	/* Until the entire background is covered by the main display, clean the entire display to ensure deleted
 	 * windows truly disappear (even if there is no other window behind it).
 	 */

@@ -248,7 +248,6 @@ void RecolourDropdownWindow::OnClick(WidgetNumber widget, const Point16 &pos)
 
 		if (this->entry->dest != widget - RD_BUTTON_00) {
 			this->entry->dest = static_cast<ColourRange>(widget - RD_BUTTON_00);
-			_video.MarkDisplayDirty();
 		}
 
 		delete this;
@@ -282,4 +281,3 @@ void GuiWindow::ShowRecolourDropdown(WidgetNumber widnum, RecolourEntry *entry, 
 
 	new RecolourDropdownWindow(this->wtype, this->wnumber, widnum, pos, colour, entry);
 }
-

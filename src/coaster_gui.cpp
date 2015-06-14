@@ -128,8 +128,6 @@ TrackPieceMouseMode::~TrackPieceMouseMode()
  */
 void TrackPieceMouseMode::SetTrackPiece(const XYZPoint16 &pos, ConstTrackPiecePtr &piece)
 {
-	if (this->pos_piece.piece != nullptr) this->MarkDirty(); // Mark current area.
-
 	this->pos_piece.piece = piece;
 	if (this->pos_piece.piece != nullptr) {
 		this->pos_piece.base_voxel = pos;
@@ -146,8 +144,6 @@ void TrackPieceMouseMode::SetTrackPiece(const XYZPoint16 &pos, ConstTrackPiecePt
 			XYZPoint16 p(this->pos_piece.base_voxel + tv->dxyz);
 			this->SetRideData(p, this->ci->GetRideNumber(), this->ci->GetInstanceData(tv));
 		}
-
-		this->MarkDirty();
 	}
 }
 
@@ -637,8 +633,6 @@ void CoasterBuildWindow::SelectorMouseMoveEvent(Viewport *vp, const Point16 &pos
 	int dx = fdata.voxel_pos.x - piece_base.x;
 	int dy = fdata.voxel_pos.y - piece_base.y;
 	if (dx == 0 && dy == 0) return;
-
-	this->piece_selector.MarkDirty();
 
 	this->piece_selector.SetPosition(this->piece_selector.area.base.x + dx, this->piece_selector.area.base.y + dy);
 	uint8 height = _world.GetTopGroundHeight(fdata.voxel_pos.x, fdata.voxel_pos.y);

@@ -873,7 +873,6 @@ void Viewport::SetUndergroundMode()
 {
 	if (!IsUndergroundModeAvailable()) return;
 	this->underground_mode = true;
-	this->MarkDirty();
 }
 
 /** Toggle the underground mode view on/off. */
@@ -881,14 +880,13 @@ void Viewport::ToggleUndergroundMode()
 {
 	if (this->underground_mode) {
 		this->underground_mode = false;
-		this->MarkDirty();
 	} else {
 		this->SetUndergroundMode();
 	}
 }
 
 /**
- * Get relative X position of a point in the world (used for marking window parts dirty).
+ * Get relative X position of a point in the world.
  * @param xpos X world position.
  * @param ypos Y world position.
  * @return Relative X position.
@@ -899,7 +897,7 @@ int32 Viewport::ComputeX(int32 xpos, int32 ypos)
 }
 
 /**
- * Get relative Y position of a point in the world (used for marking window parts dirty).
+ * Get relative Y position of a point in the world.
  * @param xpos X world position.
  * @param ypos Y world position.
  * @param zpos Z world position.
@@ -933,66 +931,6 @@ void Viewport::OnDraw(MouseModeSelector *selector)
 	}
 
 	_video.SetClippedRectangle(cr);
-}
-
-/**
- * Mark a voxel as in need of getting painted.
- * @param voxel_pos Position of the voxel.
- * @param height Number of voxels to mark above the specified coordinate (\c 0 means inspect the voxel itself).
- */
-void Viewport::MarkVoxelDirty(const XYZPoint16 &voxel_pos, int16 height)
-{
-	if (height <= 0) {
-		const Voxel *v = _world.GetVoxel(voxel_pos);
-		if (v == nullptr) {
-			height = 1;
-		} else {
-			height = 1; // There are no steep slopes, so 1 covers paths already.
-			if (v->GetGroundType() != GTP_INVALID) {
-				if (IsImplodedSteepSlope(v->GetGroundSlope())) height = 2;
-			}
-			SmallRideInstance number = v->GetInstance();
-			if (number >= SRI_FULL_RIDES) { // A ride.
-				const RideInstance *ri = _rides_manager.GetRideInstance(number);
-				if (ri != nullptr) {
-					switch (ri->GetKind()) {
-						case RTK_SHOP: {
-							const ShopInstance *si = static_cast<const ShopInstance *>(ri);
-							height = si->GetShopType()->height;
-							break;
-						}
-
-						default:
-							break;
-					}
-				}
-			}
-		}
-	}
-
-	Rectangle32 rect;
-	const Point16 *pt;
-
-	int32 center_x = this->ComputeX(this->view_pos.x, this->view_pos.y) - this->rect.base.x - this->rect.width / 2;
-	int32 center_y = this->ComputeY(this->view_pos.x, this->view_pos.y, this->view_pos.z) - this->rect.base.y - this->rect.height / 2;
-
-	pt = &_corner_dxy[this->orientation];
-	rect.base.y = this->ComputeY((voxel_pos.x + pt->x) * 256, (voxel_pos.y + pt->y) * 256, (voxel_pos.z + height) * 256) - center_y;
-
-	pt = &_corner_dxy[RotateCounterClockwise(this->orientation)];
-	rect.base.x = this->ComputeX((voxel_pos.x + pt->x) * 256, (voxel_pos.y + pt->y) * 256) - center_x;
-
-	pt = &_corner_dxy[RotateClockwise(this->orientation)];
-	int32 d = this->ComputeX((voxel_pos.x + pt->x) * 256, (voxel_pos.y + pt->y) * 256) - center_x;
-	assert(d >= rect.base.x);
-	rect.width = d - rect.base.x + 1;
-
-	pt = &_corner_dxy[RotateClockwise(RotateClockwise(this->orientation))];
-	d = this->ComputeY((voxel_pos.x + pt->x) * 256, (voxel_pos.y + pt->y) * 256, voxel_pos.z * 256) - center_y;
-	assert(d >= rect.base.y);
-	rect.height = d - rect.base.y + 1;
-
-	_video.MarkDisplayDirty(rect);
 }
 
 /**
@@ -1048,7 +986,6 @@ void Viewport::Rotate(int direction)
 	this->orientation = (ViewOrientation)((this->orientation + VOR_NUM_ORIENT + ((direction > 0) ? 1 : -1)) % VOR_NUM_ORIENT);
 	Point16 pt = this->mouse_pos;
 	this->OnMouseMoveEvent(pt);
-	this->MarkDirty();
 
 	NotifyChange(WC_PATH_BUILDER, ALL_WINDOWS_OF_TYPE, CHG_VIEWPORT_ROTATED, direction);
 }
@@ -1104,7 +1041,6 @@ void Viewport::MoveViewport(int dx, int dy)
 	if (new_x != this->view_pos.x || new_y != this->view_pos.y) {
 		this->view_pos.x = new_x;
 		this->view_pos.y = new_y;
-		this->MarkDirty();
 	}
 }
 
@@ -1160,17 +1096,6 @@ WmMouseEvent Viewport::OnMouseButtonEvent(uint8 state)
 void Viewport::OnMouseWheelEvent(int direction)
 {
 	_window_manager.SelectorMouseWheelEvent(direction);
-}
-
-/**
- * Mark a voxel as in need of getting painted.
- * @param voxel_pos Position of the voxel.
- * @param height Number of voxels to mark above the specified coordinate (\c 0 means inspect the voxel itself).
- */
-void MarkVoxelDirty(const XYZPoint16 &voxel_pos, int16 height)
-{
-	Viewport *vp = _window_manager.GetViewport();
-	if (vp != nullptr) vp->MarkVoxelDirty(voxel_pos, height);
 }
 
 /**

@@ -82,18 +82,6 @@ public:
 		return this->vid_height;
 	}
 
-	/**
-	 * Query whether the display needs to be repainted.
-	 * @return Display needs an update.
-	 */
-	inline bool DisplayNeedsRepaint()
-	{
-		return this->dirty;
-	}
-
-	void MarkDisplayDirty();
-	void MarkDisplayDirty(const Rectangle32 &rect);
-
 	void SetClippedRectangle(const ClippedRectangle &cr);
 	ClippedRectangle GetClippedRectangle();
 
@@ -163,7 +151,6 @@ private:
 	int vid_height;   ///< Height of the application window.
 	int font_height;  ///< Height of a line of text in pixels.
 	bool initialized; ///< Video system is initialized.
-	bool dirty;       ///< Video display needs being repainted.
 
 	TTF_Font *font;             ///< Opened text font.
 	SDL_Window *window;         ///< %Window of the application.
@@ -174,7 +161,6 @@ private:
 	Point16 digit_size;         ///< Size of largest digit (initially a zero-size).
 
 	bool HandleEvent();
-	void MarkDisplayClean();
 };
 
 extern VideoSystem _video;

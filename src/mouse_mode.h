@@ -45,7 +45,6 @@ public:
 	MouseModeSelector(CursorType cur_cursor);
 	virtual ~MouseModeSelector();
 
-	virtual void MarkDirty() = 0;
 	virtual CursorType GetCursor(const XYZPoint16 &voxel_pos) = 0;
 	virtual uint32 GetZRange(uint xpos, uint ypos) = 0;
 
@@ -155,8 +154,6 @@ struct CursorTileData {
 	}
 };
 
-void MarkVoxelDirty(const XYZPoint16 &voxel_pos, int16 height); // viewport.cpp
-
 /** Template for a mouse mode selector with an area of data. */
 template <typename TileData>
 class TileDataMouseMode : public MouseModeSelector {
@@ -167,20 +164,6 @@ public:
 
 	~TileDataMouseMode()
 	{
-	}
-
-	void MarkDirty() override
-	{
-		for (int x = 0; x < this->area.width; x++) {
-			int xpos = this->area.base.x + x;
-			for (int y = 0; y < this->area.height; y++) {
-				int ypos = this->area.base.y + y;
-				TileData &td = this->tile_data[this->GetTileOffset(x, y)];
-				if (!td.cursor_enabled) continue;
-
-				MarkVoxelDirty(XYZPoint16(xpos, ypos, td.GetGroundHeight(xpos, ypos)), 0);
-			}
-		}
 	}
 
 	CursorType GetCursor(const XYZPoint16 &voxel_pos) override
@@ -201,8 +184,6 @@ public:
 	 * Set the size of the cursor area.
 	 * @param xsize Horizontal size of the area.
 	 * @param ysize Vertical size of the area.
-	 * @pre World must have been marked dirty before moving the area.
-	 * @post World must be marked dirty after moving the area.
 	 */
 	void SetSize(int xsize, int ysize)
 	{
@@ -217,8 +198,6 @@ public:
 	 * Set the position of the cursor area. Clears the cursor and range data.
 	 * @param xbase X coordinate of the base position.
 	 * @param ybase Y coordinate of the base position.
-	 * @pre World must have been marked dirty before moving the area.
-	 * @post World must be marked dirty after moving the area.
 	 */
 	void SetPosition(int xbase, int ybase)
 	{
@@ -388,21 +367,6 @@ public:
 		uint32 index = this->GetTileIndex(xpos, ypos);
 		assert(index != INVALID_TILE_INDEX);
 		return this->tile_data[index];
-	}
-
-	void MarkDirty() override
-	{
-		for (int x = 0; x < this->area.width; x++) {
-			int xpos = this->area.base.x + x;
-			for (int y = 0; y < this->area.height; y++) {
-				int ypos = this->area.base.y + y;
-				TileData &td = this->tile_data[this->GetTileOffset(x, y)];
-				if (!td.cursor_enabled) continue;
-
-				MarkVoxelDirty(XYZPoint16(xpos, ypos, td.GetGroundHeight(xpos, ypos)), 0);
-				if (td.lowest <= td.highest) MarkVoxelDirty(XYZPoint16(xpos, ypos, td.lowest), td.highest - td.lowest + 1);
-			}
-		}
 	}
 
 	uint32 GetZRange(uint xpos, uint ypos) override

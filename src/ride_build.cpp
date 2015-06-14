@@ -157,12 +157,10 @@ void RideBuildWindow::OnClick(WidgetNumber wid_num, const Point16 &pos)
 	switch (wid_num) {
 		case RBW_POS_ROTATE:
 			this->orientation = static_cast<TileEdge>((this->orientation + 3) & 3);
-			this->MarkWidgetDirty(RBW_DISPLAY_RIDE);
 			break;
 
 		case RBW_NEG_ROTATE:
 			this->orientation = static_cast<TileEdge>((this->orientation + 1) & 3);
-			this->MarkWidgetDirty(RBW_DISPLAY_RIDE);
 			break;
 	}
 }
@@ -262,14 +260,11 @@ void RideBuildWindow::SelectorMouseMoveEvent(Viewport *vp, const Point16 &pos)
 	/* Clean current display if needed. */
 	switch (this->ComputeShopVoxel(XYZPoint32(wxy.x, wxy.y, vp->view_pos.z), vp->orientation)) {
 		case RPR_FAIL:
-			this->selector.MarkDirty(); // Does not do anything with a zero-sized mouse selector.
 			this->selector.SetSize(0, 0);
 			return;
 
 		case RPR_SAMEPOS:
 		case RPR_CHANGED: {
-			this->selector.MarkDirty();
-
 			/// \todo Let the shop do this.
 			ShopInstance *si = static_cast<ShopInstance *>(this->instance);
 			assert(si != nullptr && si->GetKind() == RTK_SHOP);
@@ -282,7 +277,6 @@ void RideBuildWindow::SelectorMouseMoveEvent(Viewport *vp, const Point16 &pos)
 			SmallRideInstance inst_number = static_cast<SmallRideInstance>(this->instance->GetIndex());
 			uint8 entrances = si->GetEntranceDirections(si->vox_pos);
 			this->selector.SetRideData(si->vox_pos, inst_number, entrances);
-			this->selector.MarkDirty();
 			return;
 		}
 

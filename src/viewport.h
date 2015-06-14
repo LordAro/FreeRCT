@@ -97,7 +97,6 @@ public:
 	Viewport(const XYZPoint32 &view_pos);
 	~Viewport();
 
-	void MarkVoxelDirty(const XYZPoint16 &voxel_pos, int16 height = 0);
 	void OnDraw(MouseModeSelector *selector) override;
 
 	void Rotate(int direction);
@@ -126,7 +125,5 @@ private:
 	WmMouseEvent OnMouseButtonEvent(uint8 state) override;
 	void OnMouseWheelEvent(int direction) override;
 };
-
-void MarkVoxelDirty(const XYZPoint16 &voxel_pos, int16 height = 0);
 
 #endif

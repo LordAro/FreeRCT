@@ -214,13 +214,12 @@ void RideSelectGui::OnClick(WidgetNumber wid_num, const Point16 &pos)
 		case RSEL_GENTLE:
 		case RSEL_WET:
 		case RSEL_COASTER:
-			if (this->SetNewRideKind(wid_num - RSEL_SHOPS)) this->MarkDirty();
+			this->SetNewRideKind(wid_num - RSEL_SHOPS);
 			break;
 
 		case RSEL_LIST: {
 			const ScrollbarWidget *sb = this->GetWidget<ScrollbarWidget>(RSEL_SCROLL_LIST);
  			this->SetNewRide(sb->GetClickedRow(pos));
-			this->MarkDirty();
 			break;
 		}
 

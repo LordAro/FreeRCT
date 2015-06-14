@@ -30,9 +30,9 @@ public:
 	FenceGui();
 	~FenceGui();
 
-	void DrawWidget(WidgetNumber wid_num, const BaseWidget *wid) const;
+	void DrawWidget(WidgetNumber wid_num, const BaseWidget *wid) const override;
 	void OnClick(WidgetNumber wid, const Point16 &pos) override;
-	void UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid);
+	void UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid) override;
 
 	void SelectorMouseMoveEvent(Viewport *vp, const Point16 &pos) override;
 	void SelectorMouseButtonEvent(uint8 state) override;
@@ -220,9 +220,6 @@ void FenceGui::SelectorMouseMoveEvent(Viewport *vp, const Point16 &pos)
 		if (GB(slope, PATHBIT_NE + edge, 1) != 0) edge = INVALID_EDGE; // Prevent placing on top of paths.
 	}
 
-	/* New fence, or moved fence. Update the mouse selector. */
-	this->fence_sel.MarkDirty();
-
 	this->fence_edge = edge; // Store new edge and base position.
 	this->fence_base = fdata.voxel_pos;
 
@@ -236,8 +233,6 @@ void FenceGui::SelectorMouseMoveEvent(Viewport *vp, const Point16 &pos)
 	this->fence_sel.AddVoxel(fdata.voxel_pos);
 	this->fence_sel.SetupRideInfoSpace();
 	this->fence_sel.SetFenceData(fdata.voxel_pos, this->fence_type, edge);
-
-	this->fence_sel.MarkDirty();
 }
 
 void FenceGui::SelectorMouseButtonEvent(uint8 state)
@@ -251,7 +246,6 @@ void FenceGui::SelectorMouseButtonEvent(uint8 state)
 	uint16 fences = GetGroundFencesFromMap(vs, this->fence_base.z);
 	fences = SetFenceType(fences, this->fence_edge, this->fence_type);
 	AddGroundFencesToMap(fences, vs, this->fence_base.z);
-	MarkVoxelDirty(this->fence_base);
 }
 
 /**

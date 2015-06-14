@@ -135,7 +135,6 @@ static Voxel *MakeNewVoxels(int height)
 VoxelObject::~VoxelObject()
 {
 	if (this->added) {
-		this->MarkDirty();
 		Voxel *v = _world.GetCreateVoxel(this->vox_pos, false);
 		this->RemoveSelf(v);
 	}
@@ -149,12 +148,6 @@ VoxelObject::~VoxelObject()
  * @param recolour [out] Recolour mapping if present, else \c nullptr.
  * @return Sprite to display for the voxel object.
  */
-
-/** Mark the voxel containing the voxel object as dirty, so it is repainted. */
-void VoxelObject::MarkDirty()
-{
-	MarkVoxelDirty(this->vox_pos);
-}
 
 /**
  * Load a voxel object from the save game.
@@ -856,4 +849,3 @@ void VoxelWorld::Save(Saver &svr) const
 		}
 	}
 }
-

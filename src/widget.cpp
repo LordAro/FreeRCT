@@ -204,16 +204,6 @@ void BaseWidget::AutoRaiseButtons(const Point32 &base)
 }
 
 /**
- * Denote the widget as being needed to redraw.
- * @param base %Window base coordinate.
- */
-void BaseWidget::MarkDirty(const Point32 &base) const
-{
-	Rectangle32 rect = Rectangle32(base.x + this->pos.base.x, base.y + this->pos.base.y, this->pos.width, this->pos.height);
-	_video.MarkDisplayDirty(rect);
-}
-
-/**
  * Base class leaf widget constructor.
  * @param wtype %Widget type.
  */
@@ -326,7 +316,6 @@ void LeafWidget::AutoRaiseButtons(const Point32 &base)
 {
 	if ((this->wtype == WT_TEXT_PUSHBUTTON || this->wtype == WT_IMAGE_PUSHBUTTON) && this->IsPressed()) {
 		this->SetPressed(false);
-		this->MarkDirty(base);
 	}
 }
 
@@ -682,7 +671,7 @@ ScrollbarComponent ScrollbarWidget::GetClickedComponent(const Point16 &pos)
 }
 
 /**
- * Scrollbar got clicked, update its counters, and mark the associated scrolled widget as dirty.
+ * Scrollbar got clicked and update its counters.
  * @param base Base-coordinate of the window.
  * @param pos %Position of the click in the scrollbar.
  */
@@ -691,28 +680,20 @@ void ScrollbarWidget::OnClick(const Point32 &base, const Point16 &pos)
 	switch (this->GetClickedComponent(pos)) {
 		case SBC_INCREMENT_BUTTON:
 			this->SetStart(this->start + 1);
-			this->MarkDirty(base);
-			if (this->canvas != nullptr) this->canvas->MarkDirty(base);
 			break;
 
 		case SBC_DECREMENT_BUTTON:
 			if (this->start > 0) {
 				this->SetStart(this->start - 1);
-				this->MarkDirty(base);
-				if (this->canvas != nullptr) this->canvas->MarkDirty(base);
 			}
 			break;
 
 		case SBC_BEFORE_SLIDER:
 			this->SetStart(this->start - std::min(this->start, this->GetVisibleCount()));
-			this->MarkDirty(base);
-			this->canvas->MarkDirty(base);
 			break;
 
 		case SBC_AFTER_SLIDER:
 			this->SetStart(this->start + this->GetVisibleCount());
-			this->MarkDirty(base);
-			this->canvas->MarkDirty(base);
 			break;
 
 		default:

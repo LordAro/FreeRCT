@@ -212,7 +212,6 @@ std::string VideoSystem::Initialize(const char *font_name, int font_size)
 
 	this->font_height = TTF_FontLineSkip(this->font);
 	this->initialized = true;
-	this->dirty = true; // Ensure it gets painted.
 	this->missing_sprites = false;
 
 	this->digit_size.x = 0;
@@ -261,7 +260,6 @@ bool VideoSystem::SetResolution(const Point32 &res)
 	/* Update internal screen size data structures. */
 	this->blit_rect = ClippedRectangle(0, 0, this->vid_width, this->vid_height);
 	_window_manager.RepositionAllWindows(this->vid_width, this->vid_height);
-	this->MarkDisplayDirty();
 	return true;
 }
 
@@ -277,28 +275,6 @@ void VideoSystem::GetResolutions()
 		}
 		this->resolutions.emplace(mode.w, mode.h);
 	}
-}
-
-/** Mark the entire display as being out of date (it needs the be repainted). */
-void VideoSystem::MarkDisplayDirty()
-{
-	this->dirty = true;
-}
-
-/**
- * Mark the stated area of the screen as being out of date.
- * @param rect %Rectangle which is out of date.
- * @todo Keep an administration of the rectangle(s??) to update, and update just that part.
- */
-void VideoSystem::MarkDisplayDirty(const Rectangle32 &rect)
-{
-	this->dirty = true;
-}
-
-/** Mark the display as being up-to-date. */
-void VideoSystem::MarkDisplayClean()
-{
-	this->dirty = false;
 }
 
 /**
@@ -425,7 +401,6 @@ bool VideoSystem::HandleEvent()
 				this->SetResolution({event.window.data1, event.window.data2});
 			}
 			if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
-				_video.MarkDisplayDirty();
 				_window_manager.OnAnimate();
 			}
 			return false;
@@ -481,7 +456,6 @@ void VideoSystem::Shutdown()
 		SDL_Quit();
 		delete[] this->mem;
 		this->initialized = false;
-		this->dirty = false;
 	}
 }
 
@@ -495,8 +469,6 @@ void VideoSystem::FinishRepaint()
 	SDL_RenderClear(this->renderer);
 	SDL_RenderCopy(this->renderer, this->texture, nullptr, nullptr);
 	SDL_RenderPresent(this->renderer);
-
-	MarkDisplayClean();
 }
 
 /**

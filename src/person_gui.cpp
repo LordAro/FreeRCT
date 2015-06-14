@@ -66,7 +66,6 @@ public:
 	GuestInfoWindow(const Guest *guest);
 
 	void SetWidgetStringParameters(WidgetNumber wid_num) const override;
-	void OnChange(ChangeCode code, uint32 parameter) override;
 
 private:
 	const Guest *guest; ///< The guest getting looked at by this window.
@@ -118,11 +117,6 @@ void GuestInfoWindow::SetWidgetStringParameters(WidgetNumber wid_num) const
 
 		default: break;
 	}
-}
-
-void GuestInfoWindow::OnChange(ChangeCode code, uint32 parameter)
-{
-	if (code == CHG_DISPLAY_OLD) this->MarkDirty();
 }
 
 /**

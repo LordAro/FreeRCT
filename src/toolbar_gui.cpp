@@ -35,9 +35,8 @@ public:
 
 	Point32 OnInitialPosition() override;
 	void OnClick(WidgetNumber number, const Point16 &pos) override;
-	void OnChange(ChangeCode code, uint32 parameter) override;
-	void SetWidgetStringParameters(WidgetNumber wid_num) const;
-	void UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid);
+	void SetWidgetStringParameters(WidgetNumber wid_num) const override;
+	void UpdateWidgetSize(WidgetNumber wid_num, BaseWidget *wid) override;
 };
 
 /**
@@ -156,19 +155,6 @@ void ToolbarWindow::OnClick(WidgetNumber number, const Point16 &pos)
 
 		case TB_GUI_FINANCES:
 			ShowFinancesGui();
-			break;
-	}
-}
-
-void ToolbarWindow::OnChange(ChangeCode code, uint32 parameter)
-{
-	switch (code) {
-		case CHG_UPDATE_BUTTONS:
-			/* Esure the right string parameters are used. */
-			this->MarkWidgetDirty(TB_GUI_GAME_MODE);
-			break;
-
-		default:
 			break;
 	}
 }
@@ -316,10 +302,6 @@ void BottomToolbarWindow::SetWidgetStringParameters(WidgetNumber wid_num) const
 void BottomToolbarWindow::OnChange(ChangeCode code, uint32 parameter)
 {
 	switch (code) {
-		case CHG_DISPLAY_OLD:
-			this->MarkDirty();
-			break;
-
 		case CHG_GUEST_COUNT:
 			/* Parameter decides meaning.
 			 * - 0 means a guest left.
@@ -333,7 +315,6 @@ void BottomToolbarWindow::OnChange(ChangeCode code, uint32 parameter)
 			} else {
 				this->guest_count = _guests.CountGuestsInPark();
 			}
-			this->MarkDirty();
 			break;
 
 		default:
