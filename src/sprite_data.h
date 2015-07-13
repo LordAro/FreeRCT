@@ -13,6 +13,7 @@
 static const uint32 INVALID_JUMP = UINT32_MAX; ///< Invalid jump destination in image data.
 
 class RcdFileReader;
+class ClippedRectangle;
 
 /** Flags of an image in #ImageData. */
 enum ImageFlags {
@@ -26,12 +27,12 @@ enum ImageFlags {
 class ImageData {
 public:
 	ImageData();
-	~ImageData();
+	virtual ~ImageData();
 
-	bool Load8bpp(RcdFileReader *rcd_file, size_t length);
-	bool Load32bpp(RcdFileReader *rcd_file, size_t length);
-
-	uint32 GetPixel(uint16 xoffset, uint16 yoffset, const Recolouring *recolour = nullptr, GradientShift shift = GS_NORMAL) const;
+	bool LoadSizes(RcdFileReader *rcd_file, size_t length);
+	virtual bool LoadData(RcdFileReader *rcd_file, size_t length) = 0;
+	virtual uint32 GetPixel(uint16 xoffset, uint16 yoffset, const Recolouring *recolour = nullptr, GradientShift shift = GS_NORMAL) const = 0;
+	virtual void BlitImages(const ClippedRectangle &cr, int32 x_base, int32 y_base, uint16 numx, uint16 numy, const Recolouring &recolour, GradientShift shift) const = 0;
 
 	/**
 	 * Is the sprite just a single pixel?
@@ -47,8 +48,6 @@ public:
 	uint16 height; ///< Height of the image.
 	int16 xoffset; ///< Horizontal offset of the image.
 	int16 yoffset; ///< Vertical offset of the image.
-	uint32 *table; ///< The jump table. For missing entries, #INVALID_JUMP is used.
-	uint8 *data;   ///< The image data itself.
 };
 
 ImageData *LoadImage(RcdFileReader *rcd_file);
