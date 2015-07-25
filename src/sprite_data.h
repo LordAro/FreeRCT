@@ -27,6 +27,8 @@ enum ImageFlags {
 class ImageData {
 public:
 	ImageData();
+	ImageData(const ImageData &) = delete;
+
 	virtual ~ImageData();
 
 	bool LoadSizes(RcdFileReader *rcd_file, size_t length);

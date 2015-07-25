@@ -80,6 +80,8 @@ bool ImageData::LoadSizes(RcdFileReader *rcd_file, size_t length)
 class ImageData32bpp : public ImageData {
 public:
 	ImageData32bpp();
+	ImageData32bpp(const ImageData32bpp &) = delete;
+
 	~ImageData32bpp();
 
 	bool LoadData(RcdFileReader *rcd_file, size_t length) override;
@@ -96,6 +98,8 @@ public:
 class ImageData8bpp : public ImageData {
 public:
 	ImageData8bpp();
+	ImageData8bpp(const ImageData8bpp &) = delete;
+
 	~ImageData8bpp();
 
 	bool LoadData(RcdFileReader *rcd_file, size_t length) override;
